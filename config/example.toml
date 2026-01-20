@@ -1,0 +1,92 @@
+# Azure AI Services Connectivity Testing Tool Configuration
+# Copy this file to config.toml and fill in your credentials
+
+[global]
+# Cloud environment: "global" or "china"
+cloud = "global"
+
+# Request timeout in seconds
+timeout_seconds = 30
+
+# Output format: "human", "json", or "junit"
+output_format = "human"
+
+[auth]
+# Default authentication method: "key", "token", or "both"
+default_method = "key"
+
+# Entra ID (Azure AD) configuration for token-based auth
+[auth.entra]
+# tenant_id = "your-tenant-id"
+# client_id = "your-client-id"
+# client_secret = "your-client-secret"
+
+# Speech Service configuration
+[services.speech]
+enabled = true
+region = "eastus"
+# api_key = "your-speech-api-key"  # Or set AZURE_SPEECH_API_KEY env var
+test_scenarios = ["voices_list", "token_exchange", "tts"]
+
+# Translator Service configuration
+[services.translator]
+enabled = true
+region = "global"
+# api_key = "your-translator-api-key"  # Or set AZURE_TRANSLATOR_API_KEY env var
+test_scenarios = ["languages", "detect", "translate"]
+
+# Language Service configuration
+[services.language]
+enabled = true
+region = "eastus"
+# api_key = "your-language-api-key"  # Or set AZURE_LANGUAGE_API_KEY env var
+test_scenarios = ["sentiment", "language_detection", "entities", "key_phrases"]
+
+# Vision Service configuration
+[services.vision]
+enabled = true
+region = "eastus"
+# api_key = "your-vision-api-key"  # Or set AZURE_VISION_API_KEY env var
+test_scenarios = ["analyze_image", "read_text", "detect_objects"]
+
+# Document Intelligence Service configuration
+[services.document_intelligence]
+enabled = true
+region = "eastus"
+# api_key = "your-doc-intel-api-key"  # Or set AZURE_DOCUMENT_INTELLIGENCE_API_KEY env var
+test_scenarios = ["layout", "read"]
+
+# Custom input files for testing
+[custom_inputs]
+# audio_file = "./samples/test.wav"
+# document_file = "./samples/test.pdf"
+# image_file = "./samples/test.png"
+# text = "Sample text for language analysis"
+
+# =============================================================================
+# Environment Variables
+# =============================================================================
+# The following environment variables can be used instead of config file values:
+#
+# AZURE_AI_API_KEY          - Global API key (used for all services if specific key not set)
+# AZURE_REGION              - Global region (used if service region not set)
+# AZURE_CLOUD               - Cloud environment (global/china)
+#
+# Service-specific API keys:
+# AZURE_SPEECH_API_KEY
+# AZURE_TRANSLATOR_API_KEY
+# AZURE_LANGUAGE_API_KEY
+# AZURE_VISION_API_KEY
+# AZURE_DOCUMENT_INTELLIGENCE_API_KEY
+#
+# Service-specific regions:
+# AZURE_SPEECH_REGION
+# AZURE_TRANSLATOR_REGION
+# AZURE_LANGUAGE_REGION
+# AZURE_VISION_REGION
+# AZURE_DOCUMENT_INTELLIGENCE_REGION
+#
+# Entra ID (Azure AD):
+# AZURE_TENANT_ID
+# AZURE_CLIENT_ID
+# AZURE_CLIENT_SECRET

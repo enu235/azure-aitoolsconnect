@@ -1,0 +1,52 @@
+# Claude Code
+.claude/
+
+# Rust build artifacts
+/target/
+**/*.rs.bk
+
+# Cargo lock file (optional - uncomment if this is a library)
+# Cargo.lock
+
+# IDE and editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Environment and secrets
+.env
+.env.*
+*.pem
+*.key
+*.crt
+secrets/
+
+# Logs
+*.log
+logs/
+
+# Debug files
+*.dSYM/
+*.su
+*.idb
+*.pdb
+
+# Coverage and profiling
+*.profraw
+*.profdata
+coverage/
+*.gcno
+*.gcda
+
+# Backup files
+*.bak
+*.orig
+*.backup
+
+# OS generated files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
