@@ -278,6 +278,66 @@ azure-aitoolsconnect test --auth token --region eastus
 
 📖 **For detailed authentication setup and troubleshooting, see [USAGE.md](USAGE.md#authentication)**
 
+### Bearer Token Requirements (Entra ID)
+
+When using bearer token authentication (device code, managed identity, or service principal), you must meet these requirements:
+
+```mermaid
+flowchart LR
+    subgraph Requirements["Bearer Token Requirements"]
+        A[Custom Subdomain] --> B[RBAC Role Assignment]
+        B --> C[Correct API Paths]
+    end
+    
+    subgraph Setup["Azure Portal Setup"]
+        D[Create AI Services Resource]
+        D --> E[Enable Custom Subdomain]
+        E --> F[Assign 'Cognitive Services User' Role]
+    end
+    
+    Requirements ~~~ Setup
+```
+
+| Requirement | Details |
+|-------------|---------|
+| **Custom Subdomain** | Regional endpoints (e.g., `eastus.api.cognitive.microsoft.com`) don't support bearer tokens. You must configure a custom subdomain (e.g., `myresource.cognitiveservices.azure.com`) |
+| **RBAC Role** | User/principal needs **"Cognitive Services User"** role assigned to the resource |
+| **Endpoint URL** | Use `--endpoint https://your-resource.cognitiveservices.azure.com` instead of `--region` |
+
+**Example with device code flow:**
+
+```bash
+# Get your tenant ID
+az account show --query tenantId -o tsv
+
+# Test with bearer token (note: --endpoint, not --region)
+azure-aitoolsconnect test \
+  --auth device-code \
+  --tenant YOUR_TENANT_ID \
+  --endpoint https://your-resource.cognitiveservices.azure.com
+```
+
+### Service Compatibility with Bearer Token
+
+Not all API endpoints support bearer token authentication on custom subdomains:
+
+| Service | Bearer Token Support | Notes |
+|---------|---------------------|-------|
+| **Language** | ✅ Full | All scenarios work |
+| **Vision** | ✅ Full | All scenarios work |
+| **Document Intelligence** | ✅ Full | All scenarios work |
+| **Translator** | ✅ Full | Uses `/translator/text/v3.0/` path prefix |
+| **Speech** | ⚠️ Partial | Modern APIs work; legacy REST APIs (v1) not available |
+
+**Speech Service Details:**
+- ✅ Fast Transcription API (modern)
+- ✅ Token Exchange
+- ✅ Voices List (via TTS endpoint)
+- ❌ STT REST API v1 (`/speech/recognition/...`) - not on custom subdomain
+- ❌ TTS REST API v1 (`/cognitiveservices/v1`) - not on custom subdomain
+
+These are Azure platform limitations, not tool bugs. Use the modern Speech SDK or Fast Transcription API for full bearer token support.
+
 ## Exit Codes
 
 | Code | Meaning |
@@ -343,6 +403,31 @@ graph LR
         B64[base64]
     end
 ```
+
+## Known Issues & Azure API Notes
+
+### Vision API Minimum Image Size
+
+Azure Vision API requires images to be at least **50x50 pixels**. Smaller images will return `InvalidImageSize` errors.
+
+### Document Intelligence Retired Models
+
+The `prebuilt-document` model (general document extraction) was **retired by Azure in late 2024**. Use these alternatives:
+
+| Retired Model | Replacement |
+|---------------|-------------|
+| `prebuilt-document` | `prebuilt-layout` (structure) or `prebuilt-read` (text extraction) |
+
+### Translator Path Differences
+
+When using a custom subdomain endpoint (required for bearer token auth), the Translator API uses a different path prefix:
+
+| Endpoint Type | Path |
+|---------------|------|
+| Regional (`api.cognitive.microsofttranslator.com`) | `/translate?api-version=3.0` |
+| Custom Subdomain | `/translator/text/v3.0/translate?api-version=3.0` |
+
+The tool handles this automatically when you provide `--endpoint`.
 
 ## License
 
