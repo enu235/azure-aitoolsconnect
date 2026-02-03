@@ -411,11 +411,24 @@ impl SpeechService {
     async fn test_stt_rest(&self, context: &TestContext, scenario: &TestScenario) -> TestResult {
         let (audio_data, content_type) = Self::get_audio_data(context);
 
-        let endpoint = Self::get_stt_endpoint(&context.region, context.cloud);
-        let url = format!(
-            "{}/speech/recognition/conversation/cognitiveservices/v1?language=en-US&format=simple",
-            endpoint
-        );
+        // Use custom endpoint for bearer token auth, otherwise use dedicated STT endpoint
+        // Custom subdomain uses different API path
+        let (endpoint, url) = if let Some(custom) = context.endpoint.as_deref() {
+            let ep = custom.trim_end_matches('/').to_string();
+            // Custom subdomain uses the newer speechtotext API
+            let u = format!(
+                "{}/speechtotext/speech/recognition/conversation/cognitiveservices/v1?language=en-US&format=simple",
+                ep
+            );
+            (ep, u)
+        } else {
+            let ep = Self::get_stt_endpoint(&context.region, context.cloud);
+            let u = format!(
+                "{}/speech/recognition/conversation/cognitiveservices/v1?language=en-US&format=simple",
+                ep
+            );
+            (ep, u)
+        };
 
         let (result, duration_ms) = measure_time(async {
             let request = context
@@ -462,14 +475,16 @@ impl SpeechService {
     }
 
     async fn test_tts(&self, context: &TestContext, scenario: &TestScenario) -> TestResult {
-        let endpoint = Self::get_tts_endpoint(&context.region, context.cloud);
-        let url = format!("{}/cognitiveservices/v1", endpoint);
+        // Use custom endpoint for bearer token auth, otherwise use dedicated TTS endpoint
+        // Custom subdomain uses different API path
+        let url = if let Some(custom) = context.endpoint.as_deref() {
+            format!("{}/texttospeech/cognitiveservices/v1", custom.trim_end_matches('/'))
+        } else {
+            let endpoint = Self::get_tts_endpoint(&context.region, context.cloud);
+            format!("{}/cognitiveservices/v1", endpoint)
+        };
 
-        let ssml = r#"<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='en-US'>
-            <voice name='en-US-JennyNeural'>
-                Hello, this is a connectivity test for Azure AI Services.
-            </voice>
-        </speak>"#;
+        let ssml = "<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='en-US'><voice name='en-US-JennyNeural'>Hello, this is a connectivity test.</voice></speak>";
 
         let (result, duration_ms) = measure_time(async {
             let request = context
@@ -477,7 +492,8 @@ impl SpeechService {
                 .post(&url)
                 .header("Content-Type", "application/ssml+xml")
                 .header("X-Microsoft-OutputFormat", "audio-16khz-128kbitrate-mono-mp3")
-                .body(ssml.to_string());
+                .header("User-Agent", "azure-aitoolsconnect/0.1.0")
+                .body(ssml);
             let request = context.credentials.apply_to_request(request);
 
             match request.send().await {

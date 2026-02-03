@@ -55,7 +55,8 @@ impl AzureService for TranslatorService {
 
     fn get_endpoint(&self, _region: &str, cloud: Cloud, custom_endpoint: Option<&str>) -> String {
         if let Some(endpoint) = custom_endpoint {
-            return endpoint.to_string();
+            // Custom subdomain uses different API path prefix
+            return format!("{}/translator/text/v3.0", endpoint.trim_end_matches('/'));
         }
         match cloud {
             Cloud::Global => "https://api.cognitive.microsofttranslator.com".to_string(),
@@ -174,11 +175,15 @@ impl TranslatorService {
     }
 
     async fn test_languages(&self, context: &TestContext, scenario: &TestScenario) -> TestResult {
-        let endpoint = self.get_endpoint(&context.region, context.cloud, context.endpoint.as_deref());
-        let url = format!("{}/languages?api-version=3.0", endpoint);
+        // Languages endpoint is public and doesn't require auth
+        // Always use the global endpoint for this, as custom subdomain may not support unauthenticated requests
+        let url = match context.cloud {
+            Cloud::Global => "https://api.cognitive.microsofttranslator.com/languages?api-version=3.0".to_string(),
+            Cloud::China => "https://api.translator.azure.cn/languages?api-version=3.0".to_string(),
+        };
 
         let (result, duration_ms) = measure_time(async {
-            // Languages endpoint doesn't require authentication
+            // Languages endpoint doesn't require authentication - use plain request
             match context.client.get(&url).send().await {
                 Ok(response) => {
                     let status = response.status();

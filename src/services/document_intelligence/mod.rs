@@ -80,13 +80,8 @@ impl AzureService for DocumentIntelligenceService {
                 requires_input: false,
                 input_type: Some(InputType::Document),
             },
-            TestScenario {
-                id: "general_document",
-                name: "General Document",
-                description: "Extract key-value pairs and entities from document",
-                requires_input: false,
-                input_type: Some(InputType::Document),
-            },
+            // Note: prebuilt-document model was retired in 2024.
+            // Key-value extraction is now available via prebuilt-layout with keyValuePairs feature.
         ]
     }
 
@@ -111,7 +106,6 @@ impl AzureService for DocumentIntelligenceService {
         match scenario_id {
             "layout" => self.test_layout(context, &scenario).await,
             "read" => self.test_read(context, &scenario).await,
-            "general_document" => self.test_general_document(context, &scenario).await,
             _ => TestResult::failure(
                 scenario_id,
                 scenario.name,
@@ -267,9 +261,5 @@ impl DocumentIntelligenceService {
 
     async fn test_read(&self, context: &TestContext, scenario: &TestScenario) -> TestResult {
         self.analyze_document(context, "prebuilt-read", scenario).await
-    }
-
-    async fn test_general_document(&self, context: &TestContext, scenario: &TestScenario) -> TestResult {
-        self.analyze_document(context, "prebuilt-document", scenario).await
     }
 }
