@@ -275,11 +275,7 @@ pub trait AzureService: Send + Sync {
     fn list_scenarios(&self) -> Vec<TestScenario>;
 
     /// Run a specific test scenario
-    async fn run_scenario(
-        &self,
-        scenario_id: &str,
-        context: &TestContext,
-    ) -> TestResult;
+    async fn run_scenario(&self, scenario_id: &str, context: &TestContext) -> TestResult;
 
     /// Run all enabled scenarios
     async fn run_all_scenarios(
@@ -288,7 +284,8 @@ pub trait AzureService: Send + Sync {
         enabled_scenarios: Option<&[String]>,
     ) -> ServiceTestResults {
         let scenarios = self.list_scenarios();
-        let endpoint = self.get_endpoint(&context.region, context.cloud, context.endpoint.as_deref());
+        let endpoint =
+            self.get_endpoint(&context.region, context.cloud, context.endpoint.as_deref());
         let start = Instant::now();
         let mut results = Vec::new();
 
@@ -305,7 +302,13 @@ pub trait AzureService: Send + Sync {
                 results.push(TestResult::skipped(
                     scenario.id,
                     scenario.name,
-                    format!("Requires {} input", scenario.input_type.map(|t| t.to_string()).unwrap_or_default()),
+                    format!(
+                        "Requires {} input",
+                        scenario
+                            .input_type
+                            .map(|t| t.to_string())
+                            .unwrap_or_default()
+                    ),
                 ));
                 continue;
             }
@@ -335,7 +338,13 @@ where
 }
 
 /// List of all supported service names
-const SERVICE_NAMES: &[&str] = &["speech", "translator", "language", "vision", "document_intelligence"];
+const SERVICE_NAMES: &[&str] = &[
+    "speech",
+    "translator",
+    "language",
+    "vision",
+    "document_intelligence",
+];
 
 /// Get all available services
 pub fn get_all_services() -> Vec<Box<dyn AzureService>> {
@@ -352,9 +361,9 @@ pub fn get_service(name: &str) -> Option<Box<dyn AzureService>> {
         "translator" => Some(Box::new(translator::TranslatorService::new())),
         "language" => Some(Box::new(language::LanguageService::new())),
         "vision" => Some(Box::new(vision::VisionService::new())),
-        "document_intelligence" | "document-intelligence" | "documentintelligence" => {
-            Some(Box::new(document_intelligence::DocumentIntelligenceService::new()))
-        }
+        "document_intelligence" | "document-intelligence" | "documentintelligence" => Some(
+            Box::new(document_intelligence::DocumentIntelligenceService::new()),
+        ),
         _ => None,
     }
 }

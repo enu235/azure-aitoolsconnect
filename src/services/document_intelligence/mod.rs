@@ -3,7 +3,9 @@ use std::time::Duration;
 
 use crate::config::Cloud;
 use crate::error::sanitize_error;
-use crate::services::{measure_time, AzureService, InputType, TestContext, TestResult, TestScenario};
+use crate::services::{
+    measure_time, AzureService, InputType, TestContext, TestResult, TestScenario,
+};
 
 /// Document Intelligence Service implementation
 pub struct DocumentIntelligenceService;
@@ -132,7 +134,8 @@ impl DocumentIntelligenceService {
         model_id: &str,
         scenario: &TestScenario,
     ) -> TestResult {
-        let endpoint = self.get_endpoint(&context.region, context.cloud, context.endpoint.as_deref());
+        let endpoint =
+            self.get_endpoint(&context.region, context.cloud, context.endpoint.as_deref());
         let url = format!(
             "{}/documentintelligence/documentModels/{}:analyze?api-version=2024-11-30",
             endpoint, model_id
@@ -164,7 +167,10 @@ impl DocumentIntelligenceService {
                             // Poll for completion
                             self.poll_operation(context, operation_location).await
                         } else {
-                            Err((status.as_u16(), "No operation-location header in response".to_string()))
+                            Err((
+                                status.as_u16(),
+                                "No operation-location header in response".to_string(),
+                            ))
                         }
                     } else if status.is_success() {
                         // Some operations might return synchronously
@@ -172,7 +178,14 @@ impl DocumentIntelligenceService {
                         Ok(format!("Analysis complete: {:?}", body.get("status")))
                     } else {
                         let body = response.text().await.unwrap_or_default();
-                        Err((status.as_u16(), format!("HTTP {}: {}", status, sanitize_error(&body, status.as_u16()))))
+                        Err((
+                            status.as_u16(),
+                            format!(
+                                "HTTP {}: {}",
+                                status,
+                                sanitize_error(&body, status.as_u16())
+                            ),
+                        ))
                     }
                 }
                 Err(e) => Err((0, format!("Request failed: {}", e))),
@@ -181,10 +194,12 @@ impl DocumentIntelligenceService {
         .await;
 
         match result {
-            Ok(details) => TestResult::success(scenario.id, scenario.name, duration_ms)
-                .with_details(details),
+            Ok(details) => {
+                TestResult::success(scenario.id, scenario.name, duration_ms).with_details(details)
+            }
             Err((status, error)) => {
-                let mut result = TestResult::failure(scenario.id, scenario.name, duration_ms, error);
+                let mut result =
+                    TestResult::failure(scenario.id, scenario.name, duration_ms, error);
                 if status > 0 {
                     result = result.with_http_status(status);
                 }
@@ -223,7 +238,10 @@ impl DocumentIntelligenceService {
                                         .and_then(|p| p.as_array())
                                         .map(|p| p.len())
                                         .unwrap_or(0);
-                                    return Ok(format!("Analysis succeeded: {} pages processed", pages));
+                                    return Ok(format!(
+                                        "Analysis succeeded: {} pages processed",
+                                        pages
+                                    ));
                                 }
                                 "failed" => {
                                     let error = body
@@ -231,13 +249,19 @@ impl DocumentIntelligenceService {
                                         .and_then(|e| e.get("message"))
                                         .and_then(|m| m.as_str())
                                         .unwrap_or("Unknown error");
-                                    return Err((status.as_u16(), format!("Analysis failed: {}", error)));
+                                    return Err((
+                                        status.as_u16(),
+                                        format!("Analysis failed: {}", error),
+                                    ));
                                 }
                                 "running" | "notStarted" => {
                                     // Continue polling
                                 }
                                 _ => {
-                                    return Err((status.as_u16(), format!("Unknown status: {}", op_status)));
+                                    return Err((
+                                        status.as_u16(),
+                                        format!("Unknown status: {}", op_status),
+                                    ));
                                 }
                             }
                         }
@@ -256,10 +280,12 @@ impl DocumentIntelligenceService {
     }
 
     async fn test_layout(&self, context: &TestContext, scenario: &TestScenario) -> TestResult {
-        self.analyze_document(context, "prebuilt-layout", scenario).await
+        self.analyze_document(context, "prebuilt-layout", scenario)
+            .await
     }
 
     async fn test_read(&self, context: &TestContext, scenario: &TestScenario) -> TestResult {
-        self.analyze_document(context, "prebuilt-read", scenario).await
+        self.analyze_document(context, "prebuilt-read", scenario)
+            .await
     }
 }

@@ -2,7 +2,9 @@ use async_trait::async_trait;
 
 use crate::config::Cloud;
 use crate::error::sanitize_error;
-use crate::services::{measure_time, AzureService, InputType, TestContext, TestResult, TestScenario};
+use crate::services::{
+    measure_time, AzureService, InputType, TestContext, TestResult, TestScenario,
+};
 
 /// Language Service implementation
 pub struct LanguageService;
@@ -143,11 +145,9 @@ impl LanguageService {
     }
 
     async fn test_sentiment(&self, context: &TestContext, scenario: &TestScenario) -> TestResult {
-        let endpoint = self.get_endpoint(&context.region, context.cloud, context.endpoint.as_deref());
-        let url = format!(
-            "{}/language/:analyze-text?api-version=2023-04-01",
-            endpoint
-        );
+        let endpoint =
+            self.get_endpoint(&context.region, context.cloud, context.endpoint.as_deref());
+        let url = format!("{}/language/:analyze-text?api-version=2023-04-01", endpoint);
 
         let text = Self::get_sample_text(context);
         let body = serde_json::json!({
@@ -172,9 +172,16 @@ impl LanguageService {
                     let status = response.status();
                     if status.is_success() {
                         let body: serde_json::Value = response.json().await.unwrap_or_default();
-                        if let Some(docs) = body.get("results").and_then(|r| r.get("documents")).and_then(|d| d.as_array()) {
+                        if let Some(docs) = body
+                            .get("results")
+                            .and_then(|r| r.get("documents"))
+                            .and_then(|d| d.as_array())
+                        {
                             if let Some(doc) = docs.first() {
-                                let sentiment = doc.get("sentiment").and_then(|s| s.as_str()).unwrap_or("unknown");
+                                let sentiment = doc
+                                    .get("sentiment")
+                                    .and_then(|s| s.as_str())
+                                    .unwrap_or("unknown");
                                 Ok(format!("Sentiment: {}", sentiment))
                             } else {
                                 Err((status.as_u16(), "No documents in response".to_string()))
@@ -184,7 +191,14 @@ impl LanguageService {
                         }
                     } else {
                         let body = response.text().await.unwrap_or_default();
-                        Err((status.as_u16(), format!("HTTP {}: {}", status, sanitize_error(&body, status.as_u16()))))
+                        Err((
+                            status.as_u16(),
+                            format!(
+                                "HTTP {}: {}",
+                                status,
+                                sanitize_error(&body, status.as_u16())
+                            ),
+                        ))
                     }
                 }
                 Err(e) => Err((0, format!("Request failed: {}", e))),
@@ -193,10 +207,12 @@ impl LanguageService {
         .await;
 
         match result {
-            Ok(details) => TestResult::success(scenario.id, scenario.name, duration_ms)
-                .with_details(details),
+            Ok(details) => {
+                TestResult::success(scenario.id, scenario.name, duration_ms).with_details(details)
+            }
             Err((status, error)) => {
-                let mut result = TestResult::failure(scenario.id, scenario.name, duration_ms, error);
+                let mut result =
+                    TestResult::failure(scenario.id, scenario.name, duration_ms, error);
                 if status > 0 {
                     result = result.with_http_status(status);
                 }
@@ -210,11 +226,9 @@ impl LanguageService {
         context: &TestContext,
         scenario: &TestScenario,
     ) -> TestResult {
-        let endpoint = self.get_endpoint(&context.region, context.cloud, context.endpoint.as_deref());
-        let url = format!(
-            "{}/language/:analyze-text?api-version=2023-04-01",
-            endpoint
-        );
+        let endpoint =
+            self.get_endpoint(&context.region, context.cloud, context.endpoint.as_deref());
+        let url = format!("{}/language/:analyze-text?api-version=2023-04-01", endpoint);
 
         let text = Self::get_sample_text(context);
         let body = serde_json::json!({
@@ -239,9 +253,14 @@ impl LanguageService {
                     let status = response.status();
                     if status.is_success() {
                         let body: serde_json::Value = response.json().await.unwrap_or_default();
-                        if let Some(docs) = body.get("results").and_then(|r| r.get("documents")).and_then(|d| d.as_array()) {
+                        if let Some(docs) = body
+                            .get("results")
+                            .and_then(|r| r.get("documents"))
+                            .and_then(|d| d.as_array())
+                        {
                             if let Some(doc) = docs.first() {
-                                let lang = doc.get("detectedLanguage")
+                                let lang = doc
+                                    .get("detectedLanguage")
                                     .and_then(|l| l.get("name"))
                                     .and_then(|n| n.as_str())
                                     .unwrap_or("unknown");
@@ -254,7 +273,14 @@ impl LanguageService {
                         }
                     } else {
                         let body = response.text().await.unwrap_or_default();
-                        Err((status.as_u16(), format!("HTTP {}: {}", status, sanitize_error(&body, status.as_u16()))))
+                        Err((
+                            status.as_u16(),
+                            format!(
+                                "HTTP {}: {}",
+                                status,
+                                sanitize_error(&body, status.as_u16())
+                            ),
+                        ))
                     }
                 }
                 Err(e) => Err((0, format!("Request failed: {}", e))),
@@ -263,10 +289,12 @@ impl LanguageService {
         .await;
 
         match result {
-            Ok(details) => TestResult::success(scenario.id, scenario.name, duration_ms)
-                .with_details(details),
+            Ok(details) => {
+                TestResult::success(scenario.id, scenario.name, duration_ms).with_details(details)
+            }
             Err((status, error)) => {
-                let mut result = TestResult::failure(scenario.id, scenario.name, duration_ms, error);
+                let mut result =
+                    TestResult::failure(scenario.id, scenario.name, duration_ms, error);
                 if status > 0 {
                     result = result.with_http_status(status);
                 }
@@ -276,11 +304,9 @@ impl LanguageService {
     }
 
     async fn test_entities(&self, context: &TestContext, scenario: &TestScenario) -> TestResult {
-        let endpoint = self.get_endpoint(&context.region, context.cloud, context.endpoint.as_deref());
-        let url = format!(
-            "{}/language/:analyze-text?api-version=2023-04-01",
-            endpoint
-        );
+        let endpoint =
+            self.get_endpoint(&context.region, context.cloud, context.endpoint.as_deref());
+        let url = format!("{}/language/:analyze-text?api-version=2023-04-01", endpoint);
 
         let text = Self::get_sample_text(context);
         let body = serde_json::json!({
@@ -305,9 +331,14 @@ impl LanguageService {
                     let status = response.status();
                     if status.is_success() {
                         let body: serde_json::Value = response.json().await.unwrap_or_default();
-                        if let Some(docs) = body.get("results").and_then(|r| r.get("documents")).and_then(|d| d.as_array()) {
+                        if let Some(docs) = body
+                            .get("results")
+                            .and_then(|r| r.get("documents"))
+                            .and_then(|d| d.as_array())
+                        {
                             if let Some(doc) = docs.first() {
-                                let entities = doc.get("entities")
+                                let entities = doc
+                                    .get("entities")
                                     .and_then(|e| e.as_array())
                                     .map(|e| e.len())
                                     .unwrap_or(0);
@@ -320,7 +351,14 @@ impl LanguageService {
                         }
                     } else {
                         let body = response.text().await.unwrap_or_default();
-                        Err((status.as_u16(), format!("HTTP {}: {}", status, sanitize_error(&body, status.as_u16()))))
+                        Err((
+                            status.as_u16(),
+                            format!(
+                                "HTTP {}: {}",
+                                status,
+                                sanitize_error(&body, status.as_u16())
+                            ),
+                        ))
                     }
                 }
                 Err(e) => Err((0, format!("Request failed: {}", e))),
@@ -329,10 +367,12 @@ impl LanguageService {
         .await;
 
         match result {
-            Ok(details) => TestResult::success(scenario.id, scenario.name, duration_ms)
-                .with_details(details),
+            Ok(details) => {
+                TestResult::success(scenario.id, scenario.name, duration_ms).with_details(details)
+            }
             Err((status, error)) => {
-                let mut result = TestResult::failure(scenario.id, scenario.name, duration_ms, error);
+                let mut result =
+                    TestResult::failure(scenario.id, scenario.name, duration_ms, error);
                 if status > 0 {
                     result = result.with_http_status(status);
                 }
@@ -342,11 +382,9 @@ impl LanguageService {
     }
 
     async fn test_key_phrases(&self, context: &TestContext, scenario: &TestScenario) -> TestResult {
-        let endpoint = self.get_endpoint(&context.region, context.cloud, context.endpoint.as_deref());
-        let url = format!(
-            "{}/language/:analyze-text?api-version=2023-04-01",
-            endpoint
-        );
+        let endpoint =
+            self.get_endpoint(&context.region, context.cloud, context.endpoint.as_deref());
+        let url = format!("{}/language/:analyze-text?api-version=2023-04-01", endpoint);
 
         let text = Self::get_sample_text(context);
         let body = serde_json::json!({
@@ -371,9 +409,14 @@ impl LanguageService {
                     let status = response.status();
                     if status.is_success() {
                         let body: serde_json::Value = response.json().await.unwrap_or_default();
-                        if let Some(docs) = body.get("results").and_then(|r| r.get("documents")).and_then(|d| d.as_array()) {
+                        if let Some(docs) = body
+                            .get("results")
+                            .and_then(|r| r.get("documents"))
+                            .and_then(|d| d.as_array())
+                        {
                             if let Some(doc) = docs.first() {
-                                let phrases = doc.get("keyPhrases")
+                                let phrases = doc
+                                    .get("keyPhrases")
                                     .and_then(|p| p.as_array())
                                     .map(|p| p.len())
                                     .unwrap_or(0);
@@ -386,7 +429,14 @@ impl LanguageService {
                         }
                     } else {
                         let body = response.text().await.unwrap_or_default();
-                        Err((status.as_u16(), format!("HTTP {}: {}", status, sanitize_error(&body, status.as_u16()))))
+                        Err((
+                            status.as_u16(),
+                            format!(
+                                "HTTP {}: {}",
+                                status,
+                                sanitize_error(&body, status.as_u16())
+                            ),
+                        ))
                     }
                 }
                 Err(e) => Err((0, format!("Request failed: {}", e))),
@@ -395,10 +445,12 @@ impl LanguageService {
         .await;
 
         match result {
-            Ok(details) => TestResult::success(scenario.id, scenario.name, duration_ms)
-                .with_details(details),
+            Ok(details) => {
+                TestResult::success(scenario.id, scenario.name, duration_ms).with_details(details)
+            }
             Err((status, error)) => {
-                let mut result = TestResult::failure(scenario.id, scenario.name, duration_ms, error);
+                let mut result =
+                    TestResult::failure(scenario.id, scenario.name, duration_ms, error);
                 if status > 0 {
                     result = result.with_http_status(status);
                 }
@@ -407,12 +459,14 @@ impl LanguageService {
         }
     }
 
-    async fn test_pii_detection(&self, context: &TestContext, scenario: &TestScenario) -> TestResult {
-        let endpoint = self.get_endpoint(&context.region, context.cloud, context.endpoint.as_deref());
-        let url = format!(
-            "{}/language/:analyze-text?api-version=2023-04-01",
-            endpoint
-        );
+    async fn test_pii_detection(
+        &self,
+        context: &TestContext,
+        scenario: &TestScenario,
+    ) -> TestResult {
+        let endpoint =
+            self.get_endpoint(&context.region, context.cloud, context.endpoint.as_deref());
+        let url = format!("{}/language/:analyze-text?api-version=2023-04-01", endpoint);
 
         // Use sample text with PII for testing
         let text = context
@@ -421,7 +475,8 @@ impl LanguageService {
             .and_then(|i| i.text.clone())
             .unwrap_or_else(|| {
                 "My name is John Smith and my email is john.smith@example.com. \
-                 My phone number is 555-123-4567 and my SSN is 123-45-6789.".to_string()
+                 My phone number is 555-123-4567 and my SSN is 123-45-6789."
+                    .to_string()
             });
 
         let body = serde_json::json!({
@@ -446,9 +501,14 @@ impl LanguageService {
                     let status = response.status();
                     if status.is_success() {
                         let body: serde_json::Value = response.json().await.unwrap_or_default();
-                        if let Some(docs) = body.get("results").and_then(|r| r.get("documents")).and_then(|d| d.as_array()) {
+                        if let Some(docs) = body
+                            .get("results")
+                            .and_then(|r| r.get("documents"))
+                            .and_then(|d| d.as_array())
+                        {
                             if let Some(doc) = docs.first() {
-                                let entities = doc.get("entities")
+                                let entities = doc
+                                    .get("entities")
                                     .and_then(|e| e.as_array())
                                     .map(|e| e.len())
                                     .unwrap_or(0);
@@ -461,7 +521,14 @@ impl LanguageService {
                         }
                     } else {
                         let body = response.text().await.unwrap_or_default();
-                        Err((status.as_u16(), format!("HTTP {}: {}", status, sanitize_error(&body, status.as_u16()))))
+                        Err((
+                            status.as_u16(),
+                            format!(
+                                "HTTP {}: {}",
+                                status,
+                                sanitize_error(&body, status.as_u16())
+                            ),
+                        ))
                     }
                 }
                 Err(e) => Err((0, format!("Request failed: {}", e))),
@@ -470,10 +537,12 @@ impl LanguageService {
         .await;
 
         match result {
-            Ok(details) => TestResult::success(scenario.id, scenario.name, duration_ms)
-                .with_details(details),
+            Ok(details) => {
+                TestResult::success(scenario.id, scenario.name, duration_ms).with_details(details)
+            }
             Err((status, error)) => {
-                let mut result = TestResult::failure(scenario.id, scenario.name, duration_ms, error);
+                let mut result =
+                    TestResult::failure(scenario.id, scenario.name, duration_ms, error);
                 if status > 0 {
                     result = result.with_http_status(status);
                 }
@@ -482,12 +551,14 @@ impl LanguageService {
         }
     }
 
-    async fn test_entity_linking(&self, context: &TestContext, scenario: &TestScenario) -> TestResult {
-        let endpoint = self.get_endpoint(&context.region, context.cloud, context.endpoint.as_deref());
-        let url = format!(
-            "{}/language/:analyze-text?api-version=2023-04-01",
-            endpoint
-        );
+    async fn test_entity_linking(
+        &self,
+        context: &TestContext,
+        scenario: &TestScenario,
+    ) -> TestResult {
+        let endpoint =
+            self.get_endpoint(&context.region, context.cloud, context.endpoint.as_deref());
+        let url = format!("{}/language/:analyze-text?api-version=2023-04-01", endpoint);
 
         // Use sample text with linkable entities
         let text = context
@@ -496,7 +567,8 @@ impl LanguageService {
             .and_then(|i| i.text.clone())
             .unwrap_or_else(|| {
                 "Microsoft was founded by Bill Gates and Paul Allen in Albuquerque, New Mexico. \
-                 The company later moved its headquarters to Redmond, Washington.".to_string()
+                 The company later moved its headquarters to Redmond, Washington."
+                    .to_string()
             });
 
         let body = serde_json::json!({
@@ -521,9 +593,14 @@ impl LanguageService {
                     let status = response.status();
                     if status.is_success() {
                         let body: serde_json::Value = response.json().await.unwrap_or_default();
-                        if let Some(docs) = body.get("results").and_then(|r| r.get("documents")).and_then(|d| d.as_array()) {
+                        if let Some(docs) = body
+                            .get("results")
+                            .and_then(|r| r.get("documents"))
+                            .and_then(|d| d.as_array())
+                        {
                             if let Some(doc) = docs.first() {
-                                let entities = doc.get("entities")
+                                let entities = doc
+                                    .get("entities")
                                     .and_then(|e| e.as_array())
                                     .map(|e| e.len())
                                     .unwrap_or(0);
@@ -536,7 +613,14 @@ impl LanguageService {
                         }
                     } else {
                         let body = response.text().await.unwrap_or_default();
-                        Err((status.as_u16(), format!("HTTP {}: {}", status, sanitize_error(&body, status.as_u16()))))
+                        Err((
+                            status.as_u16(),
+                            format!(
+                                "HTTP {}: {}",
+                                status,
+                                sanitize_error(&body, status.as_u16())
+                            ),
+                        ))
                     }
                 }
                 Err(e) => Err((0, format!("Request failed: {}", e))),
@@ -545,10 +629,12 @@ impl LanguageService {
         .await;
 
         match result {
-            Ok(details) => TestResult::success(scenario.id, scenario.name, duration_ms)
-                .with_details(details),
+            Ok(details) => {
+                TestResult::success(scenario.id, scenario.name, duration_ms).with_details(details)
+            }
             Err((status, error)) => {
-                let mut result = TestResult::failure(scenario.id, scenario.name, duration_ms, error);
+                let mut result =
+                    TestResult::failure(scenario.id, scenario.name, duration_ms, error);
                 if status > 0 {
                     result = result.with_http_status(status);
                 }
@@ -557,8 +643,13 @@ impl LanguageService {
         }
     }
 
-    async fn test_summarization(&self, context: &TestContext, scenario: &TestScenario) -> TestResult {
-        let endpoint = self.get_endpoint(&context.region, context.cloud, context.endpoint.as_deref());
+    async fn test_summarization(
+        &self,
+        context: &TestContext,
+        scenario: &TestScenario,
+    ) -> TestResult {
+        let endpoint =
+            self.get_endpoint(&context.region, context.cloud, context.endpoint.as_deref());
 
         // Summarization uses the async analyze-text/jobs endpoint
         let url = format!(
@@ -613,44 +704,67 @@ impl LanguageService {
                     let status = response.status();
                     if status.as_u16() == 202 {
                         // Job accepted - get the operation location
-                        if let Some(operation_location) = response.headers().get("operation-location") {
+                        if let Some(operation_location) =
+                            response.headers().get("operation-location")
+                        {
                             let op_url = operation_location.to_str().unwrap_or_default();
                             // Poll for result (with timeout)
                             for _ in 0..10 {
                                 tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
 
                                 let poll_request = context.client.get(op_url);
-                                let poll_request = context.credentials.apply_to_request(poll_request);
+                                let poll_request =
+                                    context.credentials.apply_to_request(poll_request);
 
                                 if let Ok(poll_response) = poll_request.send().await {
                                     if poll_response.status().is_success() {
-                                        let poll_body: serde_json::Value = poll_response.json().await.unwrap_or_default();
-                                        let job_status = poll_body.get("status").and_then(|s| s.as_str()).unwrap_or("");
+                                        let poll_body: serde_json::Value =
+                                            poll_response.json().await.unwrap_or_default();
+                                        let job_status = poll_body
+                                            .get("status")
+                                            .and_then(|s| s.as_str())
+                                            .unwrap_or("");
 
                                         if job_status == "succeeded" {
                                             // Get summary from results
-                                            if let Some(tasks) = poll_body.get("tasks").and_then(|t| t.get("items")).and_then(|i| i.as_array()) {
+                                            if let Some(tasks) = poll_body
+                                                .get("tasks")
+                                                .and_then(|t| t.get("items"))
+                                                .and_then(|i| i.as_array())
+                                            {
                                                 if let Some(task) = tasks.first() {
-                                                    if let Some(docs) = task.get("results").and_then(|r| r.get("documents")).and_then(|d| d.as_array()) {
+                                                    if let Some(docs) = task
+                                                        .get("results")
+                                                        .and_then(|r| r.get("documents"))
+                                                        .and_then(|d| d.as_array())
+                                                    {
                                                         if let Some(doc) = docs.first() {
-                                                            let summaries = doc.get("summaries")
+                                                            let summaries = doc
+                                                                .get("summaries")
                                                                 .and_then(|s| s.as_array())
                                                                 .map(|s| s.len())
                                                                 .unwrap_or(0);
-                                                            return Ok(format!("Generated {} summary/summaries", summaries));
+                                                            return Ok(format!(
+                                                                "Generated {} summary/summaries",
+                                                                summaries
+                                                            ));
                                                         }
                                                     }
                                                 }
                                             }
                                             return Ok("Summarization completed".to_string());
                                         } else if job_status == "failed" {
-                                            return Err((200, "Summarization job failed".to_string()));
+                                            return Err((
+                                                200,
+                                                "Summarization job failed".to_string(),
+                                            ));
                                         }
                                         // Still running, continue polling
                                     }
                                 }
                             }
-                            Ok("Job submitted (polling timeout, but endpoint responsive)".to_string())
+                            Ok("Job submitted (polling timeout, but endpoint responsive)"
+                                .to_string())
                         } else {
                             Err((status.as_u16(), "No operation-location header".to_string()))
                         }
@@ -658,7 +772,14 @@ impl LanguageService {
                         Ok("Summarization submitted".to_string())
                     } else {
                         let body = response.text().await.unwrap_or_default();
-                        Err((status.as_u16(), format!("HTTP {}: {}", status, sanitize_error(&body, status.as_u16()))))
+                        Err((
+                            status.as_u16(),
+                            format!(
+                                "HTTP {}: {}",
+                                status,
+                                sanitize_error(&body, status.as_u16())
+                            ),
+                        ))
                     }
                 }
                 Err(e) => Err((0, format!("Request failed: {}", e))),
@@ -667,10 +788,12 @@ impl LanguageService {
         .await;
 
         match result {
-            Ok(details) => TestResult::success(scenario.id, scenario.name, duration_ms)
-                .with_details(details),
+            Ok(details) => {
+                TestResult::success(scenario.id, scenario.name, duration_ms).with_details(details)
+            }
             Err((status, error)) => {
-                let mut result = TestResult::failure(scenario.id, scenario.name, duration_ms, error);
+                let mut result =
+                    TestResult::failure(scenario.id, scenario.name, duration_ms, error);
                 if status > 0 {
                     result = result.with_http_status(status);
                 }

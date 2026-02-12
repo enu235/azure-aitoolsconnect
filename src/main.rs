@@ -121,7 +121,9 @@ async fn run_login(
 
     match args.auth {
         azure_aitoolsconnect::cli::LoginAuthMethodArg::DeviceCode => {
-            let tenant_id = args.tenant.ok_or(azure_aitoolsconnect::AppError::MissingTenantId)?;
+            let tenant_id = args
+                .tenant
+                .ok_or(azure_aitoolsconnect::AppError::MissingTenantId)?;
 
             // Check disk cache first
             let scope = cloud.cognitive_scope();
@@ -135,7 +137,11 @@ async fn run_login(
                         );
                         eprintln!();
                     }
-                    output_token(&entry.access_token, entry.remaining_minutes() as u64, &args.output);
+                    output_token(
+                        &entry.access_token,
+                        entry.remaining_minutes() as u64,
+                        &args.output,
+                    );
                     return Ok(ExitCode::Success);
                 }
             }
@@ -186,7 +192,11 @@ async fn run_login(
 }
 
 /// Output the token in the requested format
-fn output_token(token: &str, expires_in_minutes: u64, format: &azure_aitoolsconnect::cli::OutputFormatArg) {
+fn output_token(
+    token: &str,
+    expires_in_minutes: u64,
+    format: &azure_aitoolsconnect::cli::OutputFormatArg,
+) {
     match format {
         azure_aitoolsconnect::cli::OutputFormatArg::Json => {
             println!(
@@ -321,11 +331,7 @@ fn run_interactive_init() -> azure_aitoolsconnect::Result<Config> {
     println!();
 
     // Cloud
-    let cloud = prompt_choice(
-        "Cloud environment",
-        &["global", "china"],
-        "global",
-    )?;
+    let cloud = prompt_choice("Cloud environment", &["global", "china"], "global")?;
     let cloud: Cloud = cloud.parse().unwrap_or(Cloud::Global);
 
     // Region
@@ -357,16 +363,15 @@ fn run_interactive_init() -> azure_aitoolsconnect::Result<Config> {
             }
         }
         AuthMethod::ManualToken => {
-            println!("  You can set the bearer token later with --bearer-token or AZURE_BEARER_TOKEN.");
+            println!(
+                "  You can set the bearer token later with --bearer-token or AZURE_BEARER_TOKEN."
+            );
         }
         _ => {}
     }
 
     // Endpoint
-    let endpoint_str = prompt_input(
-        "Custom endpoint URL (leave blank for regional)",
-        "",
-    )?;
+    let endpoint_str = prompt_input("Custom endpoint URL (leave blank for regional)", "")?;
     let endpoint = if endpoint_str.is_empty() {
         None
     } else {
@@ -376,12 +381,15 @@ fn run_interactive_init() -> azure_aitoolsconnect::Result<Config> {
     // Services
     println!();
     println!("  Available services: speech, translator, language, vision, document_intelligence");
-    let services_str = prompt_input(
-        "Services to enable (comma-separated, or 'all')",
-        "all",
-    )?;
+    let services_str = prompt_input("Services to enable (comma-separated, or 'all')", "all")?;
     let service_names = if services_str.to_lowercase() == "all" {
-        vec!["speech", "translator", "language", "vision", "document_intelligence"]
+        vec![
+            "speech",
+            "translator",
+            "language",
+            "vision",
+            "document_intelligence",
+        ]
     } else {
         services_str.split(',').map(|s| s.trim()).collect()
     };
@@ -446,7 +454,11 @@ fn prompt_input(label: &str, default: &str) -> azure_aitoolsconnect::Result<Stri
 }
 
 /// Prompt the user to choose from a list of options
-fn prompt_choice(label: &str, options: &[&str], default: &str) -> azure_aitoolsconnect::Result<String> {
+fn prompt_choice(
+    label: &str,
+    options: &[&str],
+    default: &str,
+) -> azure_aitoolsconnect::Result<String> {
     use std::io::{self, Write};
 
     eprint!(
@@ -466,7 +478,12 @@ fn prompt_choice(label: &str, options: &[&str], default: &str) -> azure_aitoolsc
     } else if options.contains(&input.as_str()) {
         Ok(input)
     } else {
-        eprintln!("  {} Invalid choice '{}', using default '{}'", style("[!]").yellow(), input, default);
+        eprintln!(
+            "  {} Invalid choice '{}', using default '{}'",
+            style("[!]").yellow(),
+            input,
+            default
+        );
         Ok(default.to_string())
     }
 }

@@ -65,13 +65,11 @@ impl TokenCacheFile {
             return Ok(Self::default());
         }
 
-        let content = std::fs::read_to_string(&path).map_err(|e| {
-            AppError::Config(format!("Failed to read token cache: {}", e))
-        })?;
+        let content = std::fs::read_to_string(&path)
+            .map_err(|e| AppError::Config(format!("Failed to read token cache: {}", e)))?;
 
-        let mut cache: TokenCacheFile = serde_json::from_str(&content).map_err(|e| {
-            AppError::Config(format!("Failed to parse token cache: {}", e))
-        })?;
+        let mut cache: TokenCacheFile = serde_json::from_str(&content)
+            .map_err(|e| AppError::Config(format!("Failed to parse token cache: {}", e)))?;
 
         // Prune expired tokens on load
         cache.tokens.retain(|t| t.is_valid());
@@ -83,22 +81,23 @@ impl TokenCacheFile {
     pub fn save(&self) -> Result<()> {
         let dir = match Self::cache_dir() {
             Some(d) => d,
-            None => return Err(AppError::Config("Cannot determine cache directory".to_string())),
+            None => {
+                return Err(AppError::Config(
+                    "Cannot determine cache directory".to_string(),
+                ))
+            }
         };
 
         // Create cache directory if it doesn't exist
-        std::fs::create_dir_all(&dir).map_err(|e| {
-            AppError::Config(format!("Failed to create cache directory: {}", e))
-        })?;
+        std::fs::create_dir_all(&dir)
+            .map_err(|e| AppError::Config(format!("Failed to create cache directory: {}", e)))?;
 
         let path = dir.join("tokens.json");
-        let content = serde_json::to_string_pretty(self).map_err(|e| {
-            AppError::Config(format!("Failed to serialize token cache: {}", e))
-        })?;
+        let content = serde_json::to_string_pretty(self)
+            .map_err(|e| AppError::Config(format!("Failed to serialize token cache: {}", e)))?;
 
-        std::fs::write(&path, &content).map_err(|e| {
-            AppError::Config(format!("Failed to write token cache: {}", e))
-        })?;
+        std::fs::write(&path, &content)
+            .map_err(|e| AppError::Config(format!("Failed to write token cache: {}", e)))?;
 
         // Set restrictive permissions on Unix
         #[cfg(unix)]
@@ -115,16 +114,15 @@ impl TokenCacheFile {
 
     /// Get a valid cached token for the given scope and tenant
     pub fn get_valid_token(&self, scope: &str, tenant_id: &str) -> Option<&CachedTokenEntry> {
-        self.tokens.iter().find(|t| {
-            t.scope == scope && t.tenant_id == tenant_id && t.is_valid()
-        })
+        self.tokens
+            .iter()
+            .find(|t| t.scope == scope && t.tenant_id == tenant_id && t.is_valid())
     }
 
     /// Insert or update a token entry (replaces existing entry for same scope+tenant)
     pub fn insert(&mut self, entry: CachedTokenEntry) {
-        self.tokens.retain(|t| {
-            !(t.scope == entry.scope && t.tenant_id == entry.tenant_id)
-        });
+        self.tokens
+            .retain(|t| !(t.scope == entry.scope && t.tenant_id == entry.tenant_id));
         self.tokens.push(entry);
     }
 
@@ -202,7 +200,13 @@ mod tests {
         cache.insert(entry2);
 
         assert_eq!(cache.tokens.len(), 1);
-        assert_eq!(cache.get_valid_token("scope", "tenant").unwrap().access_token, "new-token");
+        assert_eq!(
+            cache
+                .get_valid_token("scope", "tenant")
+                .unwrap()
+                .access_token,
+            "new-token"
+        );
     }
 
     #[test]

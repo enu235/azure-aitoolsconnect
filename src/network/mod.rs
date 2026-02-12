@@ -86,10 +86,7 @@ pub async fn check_tls(endpoint: &str) -> TlsResult {
     let start = Instant::now();
     let url = format!("https://{}", endpoint);
 
-    let client = match Client::builder()
-        .timeout(Duration::from_secs(10))
-        .build()
-    {
+    let client = match Client::builder().timeout(Duration::from_secs(10)).build() {
         Ok(c) => c,
         Err(e) => {
             return TlsResult {
@@ -133,10 +130,7 @@ pub async fn measure_latency(endpoint: &str) -> LatencyResult {
     let start = Instant::now();
     let url = format!("https://{}", endpoint);
 
-    let client = match Client::builder()
-        .timeout(Duration::from_secs(10))
-        .build()
-    {
+    let client = match Client::builder().timeout(Duration::from_secs(10)).build() {
         Ok(c) => c,
         Err(e) => {
             return LatencyResult {

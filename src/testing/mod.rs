@@ -75,17 +75,19 @@ impl TestRunnerConfig {
             None
         });
 
-        let region = region.or_else(|| {
-            // Try to find a region from any configured service
-            for service_name in &services {
-                if let Some(svc) = config.services.get(service_name) {
-                    if svc.region.is_some() {
-                        return svc.region.clone();
+        let region = region
+            .or_else(|| {
+                // Try to find a region from any configured service
+                for service_name in &services {
+                    if let Some(svc) = config.services.get(service_name) {
+                        if svc.region.is_some() {
+                            return svc.region.clone();
+                        }
                     }
                 }
-            }
-            None
-        }).unwrap_or_else(|| "eastus".to_string());
+                None
+            })
+            .unwrap_or_else(|| "eastus".to_string());
 
         // Build user auth config
         let mut user_config = config.auth.user.clone();
@@ -177,7 +179,9 @@ impl TestRunner {
         Ok(Some(TestInput {
             data,
             content_type: content_type.to_string(),
-            file_name: canonical.file_name().map(|n| n.to_string_lossy().to_string()),
+            file_name: canonical
+                .file_name()
+                .map(|n| n.to_string_lossy().to_string()),
             text: None,
         }))
     }
@@ -188,7 +192,10 @@ impl TestRunner {
         if !self.config.no_cache && self.config.auth_method == AuthMethod::DeviceCode {
             if let Ok(cache) = crate::auth::token_cache::TokenCacheFile::load() {
                 let scope = self.config.cloud.cognitive_scope();
-                let tenant_id = self.config.user_config.as_ref()
+                let tenant_id = self
+                    .config
+                    .user_config
+                    .as_ref()
                     .and_then(|c| c.tenant_id.as_deref())
                     .unwrap_or("");
                 if let Some(entry) = cache.get_valid_token(scope, tenant_id) {
@@ -240,7 +247,9 @@ impl TestRunner {
             let pb = ProgressBar::new(self.config.services.len() as u64);
             pb.set_style(
                 ProgressStyle::default_bar()
-                    .template("{spinner:.green} [{elapsed_precise}] {bar:40.cyan/blue} {pos}/{len} {msg}")
+                    .template(
+                        "{spinner:.green} [{elapsed_precise}] {bar:40.cyan/blue} {pos}/{len} {msg}",
+                    )
                     .unwrap()
                     .progress_chars("##-"),
             );
@@ -294,7 +303,9 @@ impl TestRunner {
 }
 
 /// List available scenarios for a service
-pub fn list_scenarios(service_name: Option<&str>) -> Vec<(String, Vec<crate::services::TestScenario>)> {
+pub fn list_scenarios(
+    service_name: Option<&str>,
+) -> Vec<(String, Vec<crate::services::TestScenario>)> {
     use crate::services::get_all_services;
 
     let services = if let Some(name) = service_name {

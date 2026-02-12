@@ -3,7 +3,9 @@ use serde::Deserialize;
 
 use crate::config::Cloud;
 use crate::error::sanitize_error;
-use crate::services::{measure_time, AzureService, InputType, TestContext, TestResult, TestScenario};
+use crate::services::{
+    measure_time, AzureService, InputType, TestContext, TestResult, TestScenario,
+};
 
 /// Minimal valid WAV file: PCM 16kHz, 16-bit, mono, ~0.1s silence (1600 samples)
 /// Header: 44 bytes RIFF/WAV header + 3200 bytes of silence
@@ -15,34 +17,59 @@ const MINIMAL_WAV: &[u8] = &{
     let mut wav = [0u8; 44 + DATA_SIZE as usize];
 
     // RIFF header
-    wav[0] = b'R'; wav[1] = b'I'; wav[2] = b'F'; wav[3] = b'F';
+    wav[0] = b'R';
+    wav[1] = b'I';
+    wav[2] = b'F';
+    wav[3] = b'F';
     // Chunk size (little-endian)
     wav[4] = (RIFF_SIZE & 0xFF) as u8;
     wav[5] = ((RIFF_SIZE >> 8) & 0xFF) as u8;
     wav[6] = ((RIFF_SIZE >> 16) & 0xFF) as u8;
     wav[7] = ((RIFF_SIZE >> 24) & 0xFF) as u8;
     // WAVE
-    wav[8] = b'W'; wav[9] = b'A'; wav[10] = b'V'; wav[11] = b'E';
+    wav[8] = b'W';
+    wav[9] = b'A';
+    wav[10] = b'V';
+    wav[11] = b'E';
 
     // fmt sub-chunk
-    wav[12] = b'f'; wav[13] = b'm'; wav[14] = b't'; wav[15] = b' ';
+    wav[12] = b'f';
+    wav[13] = b'm';
+    wav[14] = b't';
+    wav[15] = b' ';
     // Sub-chunk size: 16
-    wav[16] = 16; wav[17] = 0; wav[18] = 0; wav[19] = 0;
+    wav[16] = 16;
+    wav[17] = 0;
+    wav[18] = 0;
+    wav[19] = 0;
     // Audio format: PCM (1)
-    wav[20] = 1; wav[21] = 0;
+    wav[20] = 1;
+    wav[21] = 0;
     // Channels: 1 (mono)
-    wav[22] = 1; wav[23] = 0;
+    wav[22] = 1;
+    wav[23] = 0;
     // Sample rate: 16000 (0x3E80)
-    wav[24] = 0x80; wav[25] = 0x3E; wav[26] = 0; wav[27] = 0;
+    wav[24] = 0x80;
+    wav[25] = 0x3E;
+    wav[26] = 0;
+    wav[27] = 0;
     // Byte rate: 32000 (16000 * 1 * 2)
-    wav[28] = 0x00; wav[29] = 0x7D; wav[30] = 0; wav[31] = 0;
+    wav[28] = 0x00;
+    wav[29] = 0x7D;
+    wav[30] = 0;
+    wav[31] = 0;
     // Block align: 2 (1 channel * 2 bytes)
-    wav[32] = 2; wav[33] = 0;
+    wav[32] = 2;
+    wav[33] = 0;
     // Bits per sample: 16
-    wav[34] = 16; wav[35] = 0;
+    wav[34] = 16;
+    wav[35] = 0;
 
     // data sub-chunk
-    wav[36] = b'd'; wav[37] = b'a'; wav[38] = b't'; wav[39] = b'a';
+    wav[36] = b'd';
+    wav[37] = b'a';
+    wav[38] = b't';
+    wav[39] = b'a';
     // Data size
     wav[40] = (DATA_SIZE & 0xFF) as u8;
     wav[41] = ((DATA_SIZE >> 8) & 0xFF) as u8;
@@ -213,8 +240,13 @@ impl AzureService for SpeechService {
 }
 
 impl SpeechService {
-    async fn test_endpoint_check(&self, context: &TestContext, scenario: &TestScenario) -> TestResult {
-        let endpoint = self.get_endpoint(&context.region, context.cloud, context.endpoint.as_deref());
+    async fn test_endpoint_check(
+        &self,
+        context: &TestContext,
+        scenario: &TestScenario,
+    ) -> TestResult {
+        let endpoint =
+            self.get_endpoint(&context.region, context.cloud, context.endpoint.as_deref());
 
         let (result, duration_ms) = measure_time(async {
             match context.client.get(&endpoint).send().await {
@@ -224,7 +256,14 @@ impl SpeechService {
                         Ok(format!("Endpoint reachable (HTTP {})", status))
                     } else {
                         let body = response.text().await.unwrap_or_default();
-                        Err((status.as_u16(), format!("HTTP {}: {}", status, sanitize_error(&body, status.as_u16()))))
+                        Err((
+                            status.as_u16(),
+                            format!(
+                                "HTTP {}: {}",
+                                status,
+                                sanitize_error(&body, status.as_u16())
+                            ),
+                        ))
                     }
                 }
                 Err(e) => {
@@ -233,7 +272,10 @@ impl SpeechService {
                         Err((0, format!("DNS resolution failed: {}", msg)))
                     } else if msg.contains("timed out") || msg.contains("timeout") {
                         Err((0, format!("Connection timed out: {}", msg)))
-                    } else if msg.contains("certificate") || msg.contains("ssl") || msg.contains("tls") {
+                    } else if msg.contains("certificate")
+                        || msg.contains("ssl")
+                        || msg.contains("tls")
+                    {
                         Err((0, format!("TLS/SSL error: {}", msg)))
                     } else {
                         Err((0, format!("Connection failed: {}", msg)))
@@ -244,10 +286,12 @@ impl SpeechService {
         .await;
 
         match result {
-            Ok(details) => TestResult::success(scenario.id, scenario.name, duration_ms)
-                .with_details(details),
+            Ok(details) => {
+                TestResult::success(scenario.id, scenario.name, duration_ms).with_details(details)
+            }
             Err((status, error)) => {
-                let mut result = TestResult::failure(scenario.id, scenario.name, duration_ms, error);
+                let mut result =
+                    TestResult::failure(scenario.id, scenario.name, duration_ms, error);
                 if status > 0 {
                     result = result.with_http_status(status);
                 }
@@ -270,11 +314,20 @@ impl SpeechService {
                     if status.is_success() {
                         match response.json::<Vec<Voice>>().await {
                             Ok(voices) => Ok(format!("Retrieved {} voices", voices.len())),
-                            Err(e) => Err((status.as_u16(), format!("Failed to parse response: {}", e))),
+                            Err(e) => {
+                                Err((status.as_u16(), format!("Failed to parse response: {}", e)))
+                            }
                         }
                     } else {
                         let body = response.text().await.unwrap_or_default();
-                        Err((status.as_u16(), format!("HTTP {}: {}", status, sanitize_error(&body, status.as_u16()))))
+                        Err((
+                            status.as_u16(),
+                            format!(
+                                "HTTP {}: {}",
+                                status,
+                                sanitize_error(&body, status.as_u16())
+                            ),
+                        ))
                     }
                 }
                 Err(e) => Err((0, format!("Request failed: {}", e))),
@@ -283,10 +336,12 @@ impl SpeechService {
         .await;
 
         match result {
-            Ok(details) => TestResult::success(scenario.id, scenario.name, duration_ms)
-                .with_details(details),
+            Ok(details) => {
+                TestResult::success(scenario.id, scenario.name, duration_ms).with_details(details)
+            }
             Err((status, error)) => {
-                let mut result = TestResult::failure(scenario.id, scenario.name, duration_ms, error);
+                let mut result =
+                    TestResult::failure(scenario.id, scenario.name, duration_ms, error);
                 if status > 0 {
                     result = result.with_http_status(status);
                 }
@@ -300,10 +355,9 @@ impl SpeechService {
         context: &TestContext,
         scenario: &TestScenario,
     ) -> TestResult {
-        let token_endpoint = context.cloud.cognitive_token_endpoint_for(
-            &context.region,
-            context.endpoint.as_deref(),
-        );
+        let token_endpoint = context
+            .cloud
+            .cognitive_token_endpoint_for(&context.region, context.endpoint.as_deref());
 
         let (result, duration_ms) = measure_time(async {
             let request = context
@@ -324,11 +378,20 @@ impl SpeechService {
                                     Err((status.as_u16(), "Invalid token received".to_string()))
                                 }
                             }
-                            Err(e) => Err((status.as_u16(), format!("Failed to read token: {}", e))),
+                            Err(e) => {
+                                Err((status.as_u16(), format!("Failed to read token: {}", e)))
+                            }
                         }
                     } else {
                         let body = response.text().await.unwrap_or_default();
-                        Err((status.as_u16(), format!("HTTP {}: {}", status, sanitize_error(&body, status.as_u16()))))
+                        Err((
+                            status.as_u16(),
+                            format!(
+                                "HTTP {}: {}",
+                                status,
+                                sanitize_error(&body, status.as_u16())
+                            ),
+                        ))
                     }
                 }
                 Err(e) => Err((0, format!("Request failed: {}", e))),
@@ -337,10 +400,12 @@ impl SpeechService {
         .await;
 
         match result {
-            Ok(details) => TestResult::success(scenario.id, scenario.name, duration_ms)
-                .with_details(details),
+            Ok(details) => {
+                TestResult::success(scenario.id, scenario.name, duration_ms).with_details(details)
+            }
             Err((status, error)) => {
-                let mut result = TestResult::failure(scenario.id, scenario.name, duration_ms, error);
+                let mut result =
+                    TestResult::failure(scenario.id, scenario.name, duration_ms, error);
                 if status > 0 {
                     result = result.with_http_status(status);
                 }
@@ -352,7 +417,8 @@ impl SpeechService {
     async fn test_stt_short(&self, context: &TestContext, scenario: &TestScenario) -> TestResult {
         let (audio_data, content_type) = Self::get_audio_data(context);
 
-        let endpoint = self.get_endpoint(&context.region, context.cloud, context.endpoint.as_deref());
+        let endpoint =
+            self.get_endpoint(&context.region, context.cloud, context.endpoint.as_deref());
         let url = format!(
             "{}/speechtotext/transcriptions:transcribe?api-version=2024-11-15",
             endpoint
@@ -380,14 +446,27 @@ impl SpeechService {
                         Ok(format!("Transcription received: {} chars", body.len()))
                     } else if status.as_u16() == 400 {
                         let body = response.text().await.unwrap_or_default();
-                        if body.contains("audio") || body.contains("InvalidRequest") || body.contains("duration") {
-                            Ok(format!("Endpoint responsive (audio validation: HTTP {})", status))
+                        if body.contains("audio")
+                            || body.contains("InvalidRequest")
+                            || body.contains("duration")
+                        {
+                            Ok(format!(
+                                "Endpoint responsive (audio validation: HTTP {})",
+                                status
+                            ))
                         } else {
                             Err((status.as_u16(), format!("HTTP {}: {}", status, body)))
                         }
                     } else {
                         let body = response.text().await.unwrap_or_default();
-                        Err((status.as_u16(), format!("HTTP {}: {}", status, sanitize_error(&body, status.as_u16()))))
+                        Err((
+                            status.as_u16(),
+                            format!(
+                                "HTTP {}: {}",
+                                status,
+                                sanitize_error(&body, status.as_u16())
+                            ),
+                        ))
                     }
                 }
                 Err(e) => Err((0, format!("Request failed: {}", e))),
@@ -396,10 +475,12 @@ impl SpeechService {
         .await;
 
         match result {
-            Ok(details) => TestResult::success(scenario.id, scenario.name, duration_ms)
-                .with_details(details),
+            Ok(details) => {
+                TestResult::success(scenario.id, scenario.name, duration_ms).with_details(details)
+            }
             Err((status, error)) => {
-                let mut result = TestResult::failure(scenario.id, scenario.name, duration_ms, error);
+                let mut result =
+                    TestResult::failure(scenario.id, scenario.name, duration_ms, error);
                 if status > 0 {
                     result = result.with_http_status(status);
                 }
@@ -446,14 +527,28 @@ impl SpeechService {
                         Ok(format!("Recognition result: {} chars", body.len()))
                     } else if status.as_u16() == 400 {
                         let body = response.text().await.unwrap_or_default();
-                        if body.contains("audio") || body.contains("InvalidRequest") || body.contains("duration") || body.contains("USP") {
-                            Ok(format!("Endpoint responsive (audio validation: HTTP {})", status))
+                        if body.contains("audio")
+                            || body.contains("InvalidRequest")
+                            || body.contains("duration")
+                            || body.contains("USP")
+                        {
+                            Ok(format!(
+                                "Endpoint responsive (audio validation: HTTP {})",
+                                status
+                            ))
                         } else {
                             Err((status.as_u16(), format!("HTTP {}: {}", status, body)))
                         }
                     } else {
                         let body = response.text().await.unwrap_or_default();
-                        Err((status.as_u16(), format!("HTTP {}: {}", status, sanitize_error(&body, status.as_u16()))))
+                        Err((
+                            status.as_u16(),
+                            format!(
+                                "HTTP {}: {}",
+                                status,
+                                sanitize_error(&body, status.as_u16())
+                            ),
+                        ))
                     }
                 }
                 Err(e) => Err((0, format!("Request failed: {}", e))),
@@ -462,10 +557,12 @@ impl SpeechService {
         .await;
 
         match result {
-            Ok(details) => TestResult::success(scenario.id, scenario.name, duration_ms)
-                .with_details(details),
+            Ok(details) => {
+                TestResult::success(scenario.id, scenario.name, duration_ms).with_details(details)
+            }
             Err((status, error)) => {
-                let mut result = TestResult::failure(scenario.id, scenario.name, duration_ms, error);
+                let mut result =
+                    TestResult::failure(scenario.id, scenario.name, duration_ms, error);
                 if status > 0 {
                     result = result.with_http_status(status);
                 }
@@ -478,7 +575,10 @@ impl SpeechService {
         // Use custom endpoint for bearer token auth, otherwise use dedicated TTS endpoint
         // Custom subdomain uses different API path
         let url = if let Some(custom) = context.endpoint.as_deref() {
-            format!("{}/texttospeech/cognitiveservices/v1", custom.trim_end_matches('/'))
+            format!(
+                "{}/texttospeech/cognitiveservices/v1",
+                custom.trim_end_matches('/')
+            )
         } else {
             let endpoint = Self::get_tts_endpoint(&context.region, context.cloud);
             format!("{}/cognitiveservices/v1", endpoint)
@@ -491,7 +591,10 @@ impl SpeechService {
                 .client
                 .post(&url)
                 .header("Content-Type", "application/ssml+xml")
-                .header("X-Microsoft-OutputFormat", "audio-16khz-128kbitrate-mono-mp3")
+                .header(
+                    "X-Microsoft-OutputFormat",
+                    "audio-16khz-128kbitrate-mono-mp3",
+                )
                 .header("User-Agent", "azure-aitoolsconnect/0.1.0")
                 .body(ssml);
             let request = context.credentials.apply_to_request(request);
@@ -504,7 +607,14 @@ impl SpeechService {
                         Ok(format!("Audio synthesized: {} bytes", bytes.len()))
                     } else {
                         let body = response.text().await.unwrap_or_default();
-                        Err((status.as_u16(), format!("HTTP {}: {}", status, sanitize_error(&body, status.as_u16()))))
+                        Err((
+                            status.as_u16(),
+                            format!(
+                                "HTTP {}: {}",
+                                status,
+                                sanitize_error(&body, status.as_u16())
+                            ),
+                        ))
                     }
                 }
                 Err(e) => Err((0, format!("Request failed: {}", e))),
@@ -513,10 +623,12 @@ impl SpeechService {
         .await;
 
         match result {
-            Ok(details) => TestResult::success(scenario.id, scenario.name, duration_ms)
-                .with_details(details),
+            Ok(details) => {
+                TestResult::success(scenario.id, scenario.name, duration_ms).with_details(details)
+            }
             Err((status, error)) => {
-                let mut result = TestResult::failure(scenario.id, scenario.name, duration_ms, error);
+                let mut result =
+                    TestResult::failure(scenario.id, scenario.name, duration_ms, error);
                 if status > 0 {
                     result = result.with_http_status(status);
                 }
@@ -542,7 +654,15 @@ mod tests {
         // Verify mono (1 channel)
         assert_eq!(MINIMAL_WAV[22], 1);
         // Verify 16kHz sample rate
-        assert_eq!(u32::from_le_bytes([MINIMAL_WAV[24], MINIMAL_WAV[25], MINIMAL_WAV[26], MINIMAL_WAV[27]]), 16000);
+        assert_eq!(
+            u32::from_le_bytes([
+                MINIMAL_WAV[24],
+                MINIMAL_WAV[25],
+                MINIMAL_WAV[26],
+                MINIMAL_WAV[27]
+            ]),
+            16000
+        );
         // Verify 16 bits per sample
         assert_eq!(u16::from_le_bytes([MINIMAL_WAV[34], MINIMAL_WAV[35]]), 16);
         // Verify data chunk

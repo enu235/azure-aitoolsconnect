@@ -36,10 +36,10 @@ pub mod output;
 pub mod services;
 pub mod testing;
 
+pub use auth::{AuthProvider, Credentials, DeviceCodeAuth, ManagedIdentityAuth, TokenResult};
 pub use cli::{Cli, Commands};
 pub use config::{AuthMethod, Cloud, Config, OutputFormat};
 pub use error::{AppError, ExitCode, Result};
 pub use output::{get_formatter, TestReport};
 pub use services::{get_all_services, get_service, AzureService, TestResult};
 pub use testing::{TestRunner, TestRunnerConfig};
-pub use auth::{AuthProvider, Credentials, DeviceCodeAuth, ManagedIdentityAuth, TokenResult};

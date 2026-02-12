@@ -6,14 +6,14 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
 
-mod manual_token;
-mod managed_identity;
 mod device_code;
+mod managed_identity;
+mod manual_token;
 pub mod token_cache;
 
-pub use manual_token::ManualTokenAuth;
-pub use managed_identity::ManagedIdentityAuth;
 pub use device_code::{DeviceCodeAuth, TokenResult};
+pub use managed_identity::ManagedIdentityAuth;
+pub use manual_token::ManualTokenAuth;
 
 /// Token response from Entra ID
 #[derive(Debug, Deserialize)]
@@ -83,14 +83,9 @@ pub enum Credentials {
 
 impl Credentials {
     /// Apply credentials to a request builder
-    pub fn apply_to_request(
-        &self,
-        request: reqwest::RequestBuilder,
-    ) -> reqwest::RequestBuilder {
+    pub fn apply_to_request(&self, request: reqwest::RequestBuilder) -> reqwest::RequestBuilder {
         match self {
-            Credentials::ApiKey(key) => {
-                request.header("Ocp-Apim-Subscription-Key", key)
-            }
+            Credentials::ApiKey(key) => request.header("Ocp-Apim-Subscription-Key", key),
             Credentials::BearerToken(token) => {
                 request.header("Authorization", format!("Bearer {}", token))
             }
@@ -300,7 +295,9 @@ impl CognitiveTokenAuth {
             .map_err(|e| AppError::Auth(format!("Failed to read token: {}", e)))?;
 
         // Update cache
-        self.token_cache.set(token.clone(), COGNITIVE_TOKEN_LIFETIME_SECS).await;
+        self.token_cache
+            .set(token.clone(), COGNITIVE_TOKEN_LIFETIME_SECS)
+            .await;
 
         Ok(token)
     }
@@ -336,7 +333,14 @@ impl AuthManager {
         cloud: Cloud,
         default_method: AuthMethod,
     ) -> Result<Self> {
-        Self::new_with_options(api_key, entra_config, user_config, cloud, default_method, false)
+        Self::new_with_options(
+            api_key,
+            entra_config,
+            user_config,
+            cloud,
+            default_method,
+            false,
+        )
     }
 
     pub fn new_with_options(
@@ -375,8 +379,8 @@ impl AuthManager {
 
         // Initialize managed identity auth if requested
         let managed_identity_auth = if default_method == AuthMethod::ManagedIdentity {
-            let user_assigned_client_id = user_config
-                .and_then(|c| c.managed_identity_client_id.clone());
+            let user_assigned_client_id =
+                user_config.and_then(|c| c.managed_identity_client_id.clone());
             Some(ManagedIdentityAuth::new(&cloud, user_assigned_client_id)?)
         } else {
             None
@@ -417,7 +421,9 @@ impl AuthManager {
                 if let Some(ref entra) = self.entra {
                     Ok(entra as &dyn AuthProvider)
                 } else {
-                    Err(AppError::Config("Entra token auth not configured".to_string()))
+                    Err(AppError::Config(
+                        "Entra token auth not configured".to_string(),
+                    ))
                 }
             }
             AuthMethod::DeviceCode => {
@@ -447,10 +453,10 @@ impl AuthManager {
             }
             AuthMethod::Both => {
                 // Try API key first, fallback to entra
-                if self.api_key.is_some() {
-                    Ok(self.api_key.as_ref().unwrap() as &dyn AuthProvider)
-                } else if self.entra.is_some() {
-                    Ok(self.entra.as_ref().unwrap() as &dyn AuthProvider)
+                if let Some(ref key) = self.api_key {
+                    Ok(key as &dyn AuthProvider)
+                } else if let Some(ref entra) = self.entra {
+                    Ok(entra as &dyn AuthProvider)
                 } else {
                     Err(AppError::Config("No authentication configured".to_string()))
                 }

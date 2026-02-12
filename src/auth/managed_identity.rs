@@ -63,10 +63,9 @@ impl ManagedIdentityAuth {
     /// Detect which managed identity endpoint to use based on environment variables
     fn detect_endpoint() -> Result<ManagedIdentityEndpoint> {
         // Check for App Service / Container Apps identity
-        if let (Ok(endpoint), Ok(header)) = (
-            env::var("IDENTITY_ENDPOINT"),
-            env::var("IDENTITY_HEADER"),
-        ) {
+        if let (Ok(endpoint), Ok(header)) =
+            (env::var("IDENTITY_ENDPOINT"), env::var("IDENTITY_HEADER"))
+        {
             return Ok(ManagedIdentityEndpoint::AppService { endpoint, header });
         }
 

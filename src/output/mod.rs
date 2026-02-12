@@ -36,7 +36,12 @@ impl TestReport {
                 total += 1;
                 if result.success {
                     passed += 1;
-                } else if result.error.as_ref().map(|e| e.starts_with("Skipped")).unwrap_or(false) {
+                } else if result
+                    .error
+                    .as_ref()
+                    .map(|e| e.starts_with("Skipped"))
+                    .unwrap_or(false)
+                {
                     skipped += 1;
                 } else {
                     failed += 1;
@@ -120,7 +125,10 @@ impl OutputFormatter for HumanFormatter {
                     style(&service.endpoint).dim()
                 ));
             } else {
-                output.push_str(&format!("{} ({})\n", service.service_name, service.endpoint));
+                output.push_str(&format!(
+                    "{} ({})\n",
+                    service.service_name, service.endpoint
+                ));
             }
 
             for result in &service.results {
@@ -238,7 +246,8 @@ impl JsonFormatter {
 impl OutputFormatter for JsonFormatter {
     fn format(&self, report: &TestReport) -> String {
         if self.pretty {
-            serde_json::to_string_pretty(report).unwrap_or_else(|e| format!("{{\"error\": \"{}\"}}", e))
+            serde_json::to_string_pretty(report)
+                .unwrap_or_else(|e| format!("{{\"error\": \"{}\"}}", e))
         } else {
             serde_json::to_string(report).unwrap_or_else(|e| format!("{{\"error\": \"{}\"}}", e))
         }

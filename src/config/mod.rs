@@ -32,16 +32,26 @@ impl Cloud {
     pub fn cognitive_token_endpoint(&self, region: &str) -> String {
         match self {
             Cloud::Global => {
-                format!("https://{}.api.cognitive.microsoft.com/sts/v1.0/issueToken", region)
+                format!(
+                    "https://{}.api.cognitive.microsoft.com/sts/v1.0/issueToken",
+                    region
+                )
             }
             Cloud::China => {
-                format!("https://{}.api.cognitive.azure.cn/sts/v1.0/issueToken", region)
+                format!(
+                    "https://{}.api.cognitive.azure.cn/sts/v1.0/issueToken",
+                    region
+                )
             }
         }
     }
 
     /// Get the cognitive services token endpoint, using a custom endpoint if provided
-    pub fn cognitive_token_endpoint_for(&self, region: &str, custom_endpoint: Option<&str>) -> String {
+    pub fn cognitive_token_endpoint_for(
+        &self,
+        region: &str,
+        custom_endpoint: Option<&str>,
+    ) -> String {
         if let Some(endpoint) = custom_endpoint {
             format!("{}/sts/v1.0/issueToken", endpoint.trim_end_matches('/'))
         } else {
@@ -271,7 +281,12 @@ impl Config {
                 region: Some("eastus".to_string()),
                 api_key: None,
                 endpoint: None,
-                test_scenarios: vec!["endpoint_check".to_string(), "voices_list".to_string(), "token_exchange".to_string(), "tts".to_string()],
+                test_scenarios: vec![
+                    "endpoint_check".to_string(),
+                    "voices_list".to_string(),
+                    "token_exchange".to_string(),
+                    "tts".to_string(),
+                ],
             },
         );
 
@@ -433,7 +448,10 @@ pub fn validate_config(config: &Config) -> Result<Vec<String>> {
     let mut warnings = Vec::new();
 
     // Check for enabled services without API keys (only relevant for key-based auth)
-    if matches!(config.auth.default_method, AuthMethod::Key | AuthMethod::Both) {
+    if matches!(
+        config.auth.default_method,
+        AuthMethod::Key | AuthMethod::Both
+    ) {
         for (name, service) in &config.services {
             if service.enabled && service.api_key.is_none() {
                 warnings.push(format!(
@@ -461,8 +479,7 @@ pub fn validate_config(config: &Config) -> Result<Vec<String>> {
     }
 
     // Check device-code config
-    if config.auth.default_method == AuthMethod::DeviceCode
-        && config.auth.user.tenant_id.is_none()
+    if config.auth.default_method == AuthMethod::DeviceCode && config.auth.user.tenant_id.is_none()
     {
         warnings.push(
             "Device code auth selected but tenant_id is not configured in [auth.user]. \
@@ -555,25 +572,43 @@ mod tests {
 
     #[test]
     fn test_token_endpoint_custom_domain() {
-        let ep = Cloud::Global.cognitive_token_endpoint_for("eastus", Some("https://myservice.cognitiveservices.azure.com"));
-        assert_eq!(ep, "https://myservice.cognitiveservices.azure.com/sts/v1.0/issueToken");
+        let ep = Cloud::Global.cognitive_token_endpoint_for(
+            "eastus",
+            Some("https://myservice.cognitiveservices.azure.com"),
+        );
+        assert_eq!(
+            ep,
+            "https://myservice.cognitiveservices.azure.com/sts/v1.0/issueToken"
+        );
     }
 
     #[test]
     fn test_token_endpoint_regional_fallback() {
         let ep = Cloud::Global.cognitive_token_endpoint_for("eastus", None);
-        assert_eq!(ep, "https://eastus.api.cognitive.microsoft.com/sts/v1.0/issueToken");
+        assert_eq!(
+            ep,
+            "https://eastus.api.cognitive.microsoft.com/sts/v1.0/issueToken"
+        );
     }
 
     #[test]
     fn test_token_endpoint_china_fallback() {
         let ep = Cloud::China.cognitive_token_endpoint_for("chinaeast2", None);
-        assert_eq!(ep, "https://chinaeast2.api.cognitive.azure.cn/sts/v1.0/issueToken");
+        assert_eq!(
+            ep,
+            "https://chinaeast2.api.cognitive.azure.cn/sts/v1.0/issueToken"
+        );
     }
 
     #[test]
     fn test_token_endpoint_trailing_slash() {
-        let ep = Cloud::Global.cognitive_token_endpoint_for("eastus", Some("https://myservice.cognitiveservices.azure.com/"));
-        assert_eq!(ep, "https://myservice.cognitiveservices.azure.com/sts/v1.0/issueToken");
+        let ep = Cloud::Global.cognitive_token_endpoint_for(
+            "eastus",
+            Some("https://myservice.cognitiveservices.azure.com/"),
+        );
+        assert_eq!(
+            ep,
+            "https://myservice.cognitiveservices.azure.com/sts/v1.0/issueToken"
+        );
     }
 }

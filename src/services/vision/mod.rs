@@ -2,7 +2,9 @@ use async_trait::async_trait;
 
 use crate::config::Cloud;
 use crate::error::sanitize_error;
-use crate::services::{measure_time, AzureService, InputType, TestContext, TestResult, TestScenario};
+use crate::services::{
+    measure_time, AzureService, InputType, TestContext, TestResult, TestScenario,
+};
 
 /// Vision Service implementation
 pub struct VisionService;
@@ -141,7 +143,8 @@ impl VisionService {
         context: &TestContext,
         scenario: &TestScenario,
     ) -> TestResult {
-        let endpoint = self.get_endpoint(&context.region, context.cloud, context.endpoint.as_deref());
+        let endpoint =
+            self.get_endpoint(&context.region, context.cloud, context.endpoint.as_deref());
         // Note: Using tags,objects,read features which are available in all regions.
         // caption/denseCaptions are NOT available in some regions (e.g., swedencentral).
         let url = format!(
@@ -173,7 +176,14 @@ impl VisionService {
                         ))
                     } else {
                         let body = response.text().await.unwrap_or_default();
-                        Err((status.as_u16(), format!("HTTP {}: {}", status, sanitize_error(&body, status.as_u16()))))
+                        Err((
+                            status.as_u16(),
+                            format!(
+                                "HTTP {}: {}",
+                                status,
+                                sanitize_error(&body, status.as_u16())
+                            ),
+                        ))
                     }
                 }
                 Err(e) => Err((0, format!("Request failed: {}", e))),
@@ -182,10 +192,12 @@ impl VisionService {
         .await;
 
         match result {
-            Ok(details) => TestResult::success(scenario.id, scenario.name, duration_ms)
-                .with_details(details),
+            Ok(details) => {
+                TestResult::success(scenario.id, scenario.name, duration_ms).with_details(details)
+            }
             Err((status, error)) => {
-                let mut result = TestResult::failure(scenario.id, scenario.name, duration_ms, error);
+                let mut result =
+                    TestResult::failure(scenario.id, scenario.name, duration_ms, error);
                 if status > 0 {
                     result = result.with_http_status(status);
                 }
@@ -195,7 +207,8 @@ impl VisionService {
     }
 
     async fn test_read_text(&self, context: &TestContext, scenario: &TestScenario) -> TestResult {
-        let endpoint = self.get_endpoint(&context.region, context.cloud, context.endpoint.as_deref());
+        let endpoint =
+            self.get_endpoint(&context.region, context.cloud, context.endpoint.as_deref());
         let url = format!(
             "{}/computervision/imageanalysis:analyze?api-version=2024-02-01&features=read",
             endpoint
@@ -225,7 +238,14 @@ impl VisionService {
                         Ok(format!("Read complete: {} text blocks found", blocks))
                     } else {
                         let body = response.text().await.unwrap_or_default();
-                        Err((status.as_u16(), format!("HTTP {}: {}", status, sanitize_error(&body, status.as_u16()))))
+                        Err((
+                            status.as_u16(),
+                            format!(
+                                "HTTP {}: {}",
+                                status,
+                                sanitize_error(&body, status.as_u16())
+                            ),
+                        ))
                     }
                 }
                 Err(e) => Err((0, format!("Request failed: {}", e))),
@@ -234,10 +254,12 @@ impl VisionService {
         .await;
 
         match result {
-            Ok(details) => TestResult::success(scenario.id, scenario.name, duration_ms)
-                .with_details(details),
+            Ok(details) => {
+                TestResult::success(scenario.id, scenario.name, duration_ms).with_details(details)
+            }
             Err((status, error)) => {
-                let mut result = TestResult::failure(scenario.id, scenario.name, duration_ms, error);
+                let mut result =
+                    TestResult::failure(scenario.id, scenario.name, duration_ms, error);
                 if status > 0 {
                     result = result.with_http_status(status);
                 }
@@ -251,7 +273,8 @@ impl VisionService {
         context: &TestContext,
         scenario: &TestScenario,
     ) -> TestResult {
-        let endpoint = self.get_endpoint(&context.region, context.cloud, context.endpoint.as_deref());
+        let endpoint =
+            self.get_endpoint(&context.region, context.cloud, context.endpoint.as_deref());
         let url = format!(
             "{}/computervision/imageanalysis:analyze?api-version=2024-02-01&features=objects",
             endpoint
@@ -281,7 +304,14 @@ impl VisionService {
                         Ok(format!("Detection complete: {} objects found", objects))
                     } else {
                         let body = response.text().await.unwrap_or_default();
-                        Err((status.as_u16(), format!("HTTP {}: {}", status, sanitize_error(&body, status.as_u16()))))
+                        Err((
+                            status.as_u16(),
+                            format!(
+                                "HTTP {}: {}",
+                                status,
+                                sanitize_error(&body, status.as_u16())
+                            ),
+                        ))
                     }
                 }
                 Err(e) => Err((0, format!("Request failed: {}", e))),
@@ -290,10 +320,12 @@ impl VisionService {
         .await;
 
         match result {
-            Ok(details) => TestResult::success(scenario.id, scenario.name, duration_ms)
-                .with_details(details),
+            Ok(details) => {
+                TestResult::success(scenario.id, scenario.name, duration_ms).with_details(details)
+            }
             Err((status, error)) => {
-                let mut result = TestResult::failure(scenario.id, scenario.name, duration_ms, error);
+                let mut result =
+                    TestResult::failure(scenario.id, scenario.name, duration_ms, error);
                 if status > 0 {
                     result = result.with_http_status(status);
                 }
@@ -302,12 +334,9 @@ impl VisionService {
         }
     }
 
-    async fn test_smart_crops(
-        &self,
-        context: &TestContext,
-        scenario: &TestScenario,
-    ) -> TestResult {
-        let endpoint = self.get_endpoint(&context.region, context.cloud, context.endpoint.as_deref());
+    async fn test_smart_crops(&self, context: &TestContext, scenario: &TestScenario) -> TestResult {
+        let endpoint =
+            self.get_endpoint(&context.region, context.cloud, context.endpoint.as_deref());
         // smartCrops requires aspect ratios - using common thumbnail ratios
         let url = format!(
             "{}/computervision/imageanalysis:analyze?api-version=2024-02-01&features=smartCrops&smartCrops-aspect-ratios=1.0,1.5",
@@ -338,7 +367,14 @@ impl VisionService {
                         Ok(format!("Smart crops complete: {} crop regions", crops))
                     } else {
                         let body = response.text().await.unwrap_or_default();
-                        Err((status.as_u16(), format!("HTTP {}: {}", status, sanitize_error(&body, status.as_u16()))))
+                        Err((
+                            status.as_u16(),
+                            format!(
+                                "HTTP {}: {}",
+                                status,
+                                sanitize_error(&body, status.as_u16())
+                            ),
+                        ))
                     }
                 }
                 Err(e) => Err((0, format!("Request failed: {}", e))),
@@ -347,10 +383,12 @@ impl VisionService {
         .await;
 
         match result {
-            Ok(details) => TestResult::success(scenario.id, scenario.name, duration_ms)
-                .with_details(details),
+            Ok(details) => {
+                TestResult::success(scenario.id, scenario.name, duration_ms).with_details(details)
+            }
             Err((status, error)) => {
-                let mut result = TestResult::failure(scenario.id, scenario.name, duration_ms, error);
+                let mut result =
+                    TestResult::failure(scenario.id, scenario.name, duration_ms, error);
                 if status > 0 {
                     result = result.with_http_status(status);
                 }
@@ -364,7 +402,8 @@ impl VisionService {
         context: &TestContext,
         scenario: &TestScenario,
     ) -> TestResult {
-        let endpoint = self.get_endpoint(&context.region, context.cloud, context.endpoint.as_deref());
+        let endpoint =
+            self.get_endpoint(&context.region, context.cloud, context.endpoint.as_deref());
         let url = format!(
             "{}/computervision/imageanalysis:analyze?api-version=2024-02-01&features=people",
             endpoint
@@ -391,10 +430,20 @@ impl VisionService {
                             .and_then(|v| v.as_array())
                             .map(|v| v.len())
                             .unwrap_or(0);
-                        Ok(format!("People detection complete: {} people found", people))
+                        Ok(format!(
+                            "People detection complete: {} people found",
+                            people
+                        ))
                     } else {
                         let body = response.text().await.unwrap_or_default();
-                        Err((status.as_u16(), format!("HTTP {}: {}", status, sanitize_error(&body, status.as_u16()))))
+                        Err((
+                            status.as_u16(),
+                            format!(
+                                "HTTP {}: {}",
+                                status,
+                                sanitize_error(&body, status.as_u16())
+                            ),
+                        ))
                     }
                 }
                 Err(e) => Err((0, format!("Request failed: {}", e))),
@@ -403,10 +452,12 @@ impl VisionService {
         .await;
 
         match result {
-            Ok(details) => TestResult::success(scenario.id, scenario.name, duration_ms)
-                .with_details(details),
+            Ok(details) => {
+                TestResult::success(scenario.id, scenario.name, duration_ms).with_details(details)
+            }
             Err((status, error)) => {
-                let mut result = TestResult::failure(scenario.id, scenario.name, duration_ms, error);
+                let mut result =
+                    TestResult::failure(scenario.id, scenario.name, duration_ms, error);
                 if status > 0 {
                     result = result.with_http_status(status);
                 }
