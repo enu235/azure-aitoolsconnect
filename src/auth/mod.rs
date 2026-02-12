@@ -9,10 +9,11 @@ use tokio::sync::RwLock;
 mod manual_token;
 mod managed_identity;
 mod device_code;
+pub mod token_cache;
 
 pub use manual_token::ManualTokenAuth;
 pub use managed_identity::ManagedIdentityAuth;
-pub use device_code::DeviceCodeAuth;
+pub use device_code::{DeviceCodeAuth, TokenResult};
 
 /// Token response from Entra ID
 #[derive(Debug, Deserialize)]
@@ -335,6 +336,17 @@ impl AuthManager {
         cloud: Cloud,
         default_method: AuthMethod,
     ) -> Result<Self> {
+        Self::new_with_options(api_key, entra_config, user_config, cloud, default_method, false)
+    }
+
+    pub fn new_with_options(
+        api_key: Option<String>,
+        entra_config: Option<&EntraConfig>,
+        user_config: Option<&UserAuthConfig>,
+        cloud: Cloud,
+        default_method: AuthMethod,
+        quiet: bool,
+    ) -> Result<Self> {
         let api_key_auth = api_key.map(ApiKeyAuth::new);
 
         let entra_auth = if let Some(config) = entra_config {
@@ -376,7 +388,7 @@ impl AuthManager {
                 .and_then(|c| c.tenant_id.clone())
                 .ok_or(AppError::MissingTenantId)?;
             let client_id = user_config.and_then(|c| c.client_id.clone());
-            Some(DeviceCodeAuth::new(tenant_id, client_id, &cloud)?)
+            Some(DeviceCodeAuth::new(tenant_id, client_id, &cloud)?.with_quiet(quiet))
         } else {
             None
         };

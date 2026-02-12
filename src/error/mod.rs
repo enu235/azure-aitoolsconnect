@@ -116,6 +116,68 @@ impl AppError {
             }
         }
     }
+
+    /// Return actionable guidance to help the user fix the issue
+    pub fn hint(&self) -> Option<&'static str> {
+        match self {
+            AppError::MissingTenantId => Some(
+                "Use --tenant YOUR_TENANT_ID or set AZURE_USER_TENANT_ID environment variable.\n  \
+                 Find your tenant ID: Azure Portal > Microsoft Entra ID > Overview > Tenant ID"
+            ),
+            AppError::InvalidBearerToken(msg) if msg.contains("empty") => Some(
+                "Provide a token with --bearer-token TOKEN or set AZURE_BEARER_TOKEN.\n  \
+                 Get a token interactively: azure-aitoolsconnect login --tenant YOUR_TENANT_ID"
+            ),
+            AppError::InvalidBearerToken(_) => Some(
+                "Ensure you are using a valid JWT token (they typically start with 'eyJ').\n  \
+                 Get a fresh token: azure-aitoolsconnect login --tenant YOUR_TENANT_ID"
+            ),
+            AppError::DeviceCodeAuthFailed(msg) if msg.contains("timed out") || msg.contains("expired") => Some(
+                "The device code expired before sign-in completed. Run the command again\n  \
+                 and complete the sign-in within the time limit shown."
+            ),
+            AppError::DeviceCodeAuthFailed(msg) if msg.contains("declined") => Some(
+                "Authorization was denied. Ensure your account has the 'Cognitive Services User'\n  \
+                 RBAC role assigned on the target Azure AI resource."
+            ),
+            AppError::DeviceCodeAuthFailed(_) => Some(
+                "Check your network connection and tenant ID. If the issue persists, verify\n  \
+                 the tenant allows device code authentication in Entra ID settings."
+            ),
+            AppError::Auth(msg) if msg.contains("401") || msg.contains("403") || msg.contains("Unauthorized") => Some(
+                "Authentication was rejected. For bearer token auth, ensure:\n  \
+                 1. Use a custom subdomain endpoint (--endpoint https://YOUR-RESOURCE.cognitiveservices.azure.com)\n  \
+                 2. The 'Cognitive Services User' RBAC role is assigned to your identity\n  \
+                 3. Your token has not expired (get a fresh one with: azure-aitoolsconnect login)"
+            ),
+            AppError::Auth(msg) if msg.contains("API key") || msg.contains("api key") => Some(
+                "Set an API key with --api-key YOUR_KEY or AZURE_AI_API_KEY environment variable.\n  \
+                 Or use interactive login: azure-aitoolsconnect test --auth device-code --tenant YOUR_TENANT_ID"
+            ),
+            AppError::Config(msg) if msg.contains("API key") || msg.contains("not configured") => Some(
+                "Set an API key with --api-key YOUR_KEY or AZURE_AI_API_KEY environment variable.\n  \
+                 For interactive login: azure-aitoolsconnect test --auth device-code --tenant YOUR_TENANT_ID\n  \
+                 To create a config file: azure-aitoolsconnect init"
+            ),
+            AppError::ManagedIdentityNotAvailable(_) => Some(
+                "Managed identity is only available in Azure environments (VM, App Service, etc.).\n  \
+                 For local development, use: azure-aitoolsconnect test --auth device-code --tenant YOUR_TENANT_ID"
+            ),
+            AppError::Network(msg) if msg.contains("dns") || msg.contains("resolve") || msg.contains("DNS") => Some(
+                "DNS resolution failed. Check your network connection and proxy settings.\n  \
+                 Run diagnostics: azure-aitoolsconnect diagnose --dns --region YOUR_REGION"
+            ),
+            AppError::Network(_) | AppError::Http(_) | AppError::Timeout(_) => Some(
+                "Check your network connection. If behind a proxy or firewall, ensure Azure\n  \
+                 endpoints are accessible. Run: azure-aitoolsconnect diagnose --region YOUR_REGION"
+            ),
+            AppError::FileNotFound(path) if path.contains("config") => Some(
+                "Create a config file: azure-aitoolsconnect init\n  \
+                 Or specify a path: azure-aitoolsconnect --config /path/to/config.toml"
+            ),
+            _ => None,
+        }
+    }
 }
 
 pub type Result<T> = std::result::Result<T, AppError>;

@@ -432,13 +432,15 @@ impl Config {
 pub fn validate_config(config: &Config) -> Result<Vec<String>> {
     let mut warnings = Vec::new();
 
-    // Check for enabled services without API keys
-    for (name, service) in &config.services {
-        if service.enabled && service.api_key.is_none() {
-            warnings.push(format!(
-                "Service '{}' is enabled but has no API key configured",
-                name
-            ));
+    // Check for enabled services without API keys (only relevant for key-based auth)
+    if matches!(config.auth.default_method, AuthMethod::Key | AuthMethod::Both) {
+        for (name, service) in &config.services {
+            if service.enabled && service.api_key.is_none() {
+                warnings.push(format!(
+                    "Service '{}' is enabled but has no API key configured",
+                    name
+                ));
+            }
         }
     }
 
@@ -455,6 +457,65 @@ pub fn validate_config(config: &Config) -> Result<Vec<String>> {
         }
         if config.auth.entra.client_secret.is_none() {
             warnings.push("Token auth selected but client_secret is not configured".to_string());
+        }
+    }
+
+    // Check device-code config
+    if config.auth.default_method == AuthMethod::DeviceCode
+        && config.auth.user.tenant_id.is_none()
+    {
+        warnings.push(
+            "Device code auth selected but tenant_id is not configured in [auth.user]. \
+             Use --tenant on the command line or set AZURE_USER_TENANT_ID."
+                .to_string(),
+        );
+    }
+
+    // Check manual-token config
+    if config.auth.default_method == AuthMethod::ManualToken
+        && config.auth.user.bearer_token.is_none()
+    {
+        warnings.push(
+            "Manual token auth selected but no bearer_token is configured. \
+             Use --bearer-token or set AZURE_BEARER_TOKEN."
+                .to_string(),
+        );
+    }
+
+    // Check managed-identity config (warn if outside Azure)
+    if config.auth.default_method == AuthMethod::ManagedIdentity
+        && std::env::var("IDENTITY_ENDPOINT").is_err()
+        && std::env::var("MSI_ENDPOINT").is_err()
+    {
+        warnings.push(
+            "Managed identity auth selected but no identity endpoint detected. \
+             This will work on Azure VMs via IMDS but will fail on non-Azure machines."
+                .to_string(),
+        );
+    }
+
+    // Check bearer token auth without custom endpoint
+    if matches!(
+        config.auth.default_method,
+        AuthMethod::DeviceCode | AuthMethod::ManualToken | AuthMethod::ManagedIdentity
+    ) {
+        let has_custom_endpoint = config.services.values().any(|s| s.endpoint.is_some());
+        if !has_custom_endpoint {
+            warnings.push(
+                "Bearer token auth typically requires a custom subdomain endpoint. \
+                 Use --endpoint https://YOUR-RESOURCE.cognitiveservices.azure.com"
+                    .to_string(),
+            );
+        }
+    }
+
+    // Check for services with no region and no endpoint
+    for (name, service) in &config.services {
+        if service.enabled && service.region.is_none() && service.endpoint.is_none() {
+            warnings.push(format!(
+                "Service '{}' has no region or endpoint configured",
+                name
+            ));
         }
     }
 

@@ -17,6 +17,9 @@
 //! # Test all services with API key
 //! azure-aitoolsconnect test --services all --api-key $KEY --region eastus
 //!
+//! # Get a bearer token interactively
+//! azure-aitoolsconnect login --tenant YOUR_TENANT_ID
+//!
 //! # Test specific services
 //! azure-aitoolsconnect test --services speech,translator --region westus2
 //!
@@ -39,3 +42,4 @@ pub use error::{AppError, ExitCode, Result};
 pub use output::{get_formatter, TestReport};
 pub use services::{get_all_services, get_service, AzureService, TestResult};
 pub use testing::{TestRunner, TestRunnerConfig};
+pub use auth::{AuthProvider, Credentials, DeviceCodeAuth, ManagedIdentityAuth, TokenResult};

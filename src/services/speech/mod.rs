@@ -413,7 +413,7 @@ impl SpeechService {
 
         // Use custom endpoint for bearer token auth, otherwise use dedicated STT endpoint
         // Custom subdomain uses different API path
-        let (endpoint, url) = if let Some(custom) = context.endpoint.as_deref() {
+        let (_endpoint, url) = if let Some(custom) = context.endpoint.as_deref() {
             let ep = custom.trim_end_matches('/').to_string();
             // Custom subdomain uses the newer speechtotext API
             let u = format!(

@@ -2,6 +2,8 @@ use super::{AuthProvider, Credentials};
 use crate::config::Cloud;
 use crate::error::{AppError, Result};
 use async_trait::async_trait;
+use console::style;
+use indicatif::{ProgressBar, ProgressStyle};
 use oauth2::basic::{BasicClient, BasicTokenResponse};
 use oauth2::devicecode::StandardDeviceAuthorizationResponse;
 use oauth2::{
@@ -14,6 +16,14 @@ use tokio::time::sleep;
 /// Azure CLI's well-known public client ID
 const AZURE_CLI_CLIENT_ID: &str = "04b07795-8ddb-461a-bbee-02f9e1bf7b46";
 
+/// Token result with metadata for display and caching
+#[derive(Debug, Clone)]
+pub struct TokenResult {
+    pub access_token: String,
+    pub expires_in_secs: u64,
+    pub scope: String,
+}
+
 /// Device Code Flow authentication provider
 /// Displays a code for the user to enter at a Microsoft login page
 pub struct DeviceCodeAuth {
@@ -21,6 +31,7 @@ pub struct DeviceCodeAuth {
     client_id: String,
     scope: String,
     cloud: Cloud,
+    quiet: bool,
 }
 
 impl DeviceCodeAuth {
@@ -37,11 +48,24 @@ impl DeviceCodeAuth {
             client_id,
             scope: scope.to_string(),
             cloud: *cloud,
+            quiet: false,
         })
     }
 
+    /// Set quiet mode (suppresses progress indicators)
+    pub fn with_quiet(mut self, quiet: bool) -> Self {
+        self.quiet = quiet;
+        self
+    }
+
+    /// Authenticate and return token with metadata.
+    /// This is the public API for the login command.
+    pub async fn authenticate(&self) -> Result<TokenResult> {
+        self.fetch_token().await
+    }
+
     /// Fetch token using device code flow
-    async fn fetch_token(&self) -> Result<String> {
+    async fn fetch_token(&self) -> Result<TokenResult> {
         let login_endpoint = self.cloud.login_endpoint();
 
         // Build OAuth2 client
@@ -90,23 +114,36 @@ impl DeviceCodeAuth {
         // Poll for token
         let token = self.poll_for_token(&client, &details).await?;
 
-        Ok(token.access_token().secret().clone())
+        let expires_in = token
+            .expires_in()
+            .map(|d| d.as_secs())
+            .unwrap_or(3600);
+
+        Ok(TokenResult {
+            access_token: token.access_token().secret().clone(),
+            expires_in_secs: expires_in,
+            scope: self.scope.clone(),
+        })
     }
 
     /// Display authentication instructions to the user
     fn display_instructions(&self, details: &StandardDeviceAuthorizationResponse) {
-        println!("\n{}", "=".repeat(70));
-        println!("  Azure Authentication Required");
-        println!("{}", "=".repeat(70));
-        println!();
-        println!("  Please visit:  {}", details.verification_uri().as_str());
-        println!();
-        println!("  And enter code:  {}", details.user_code().secret());
-        println!();
-        println!("{}", "=".repeat(70));
-        println!();
-        println!("Waiting for authentication...");
-        println!();
+        let url = details.verification_uri().as_str();
+        let code = details.user_code().secret();
+
+        eprintln!();
+        eprintln!("{}", style("======================================================================").cyan());
+        eprintln!("  {} {}", style("[*]").cyan(), style("Azure Authentication Required").bold());
+        eprintln!("{}", style("======================================================================").cyan());
+        eprintln!();
+        eprintln!("  {} Open this URL in your browser:", style("1.").bold());
+        eprintln!("     {}", style(url).underlined());
+        eprintln!();
+        eprintln!("  {} Enter this code:", style("2.").bold());
+        eprintln!("     {}", style(code).bold().yellow());
+        eprintln!();
+        eprintln!("{}", style("======================================================================").cyan());
+        eprintln!();
     }
 
     /// Poll the token endpoint until the user completes authentication
@@ -116,14 +153,43 @@ impl DeviceCodeAuth {
         details: &StandardDeviceAuthorizationResponse,
     ) -> Result<BasicTokenResponse> {
         let interval = details.interval();
-        let timeout = Duration::from_secs(15 * 60); // 15 minutes
+        let timeout_secs = details.expires_in().as_secs();
+        let timeout_secs = if timeout_secs == 0 { 15 * 60 } else { timeout_secs };
+        let timeout = Duration::from_secs(timeout_secs);
         let start = std::time::Instant::now();
 
+        // Create countdown progress bar
+        let pb = if !self.quiet {
+            let pb = ProgressBar::new(timeout_secs);
+            pb.set_style(
+                ProgressStyle::default_bar()
+                    .template("  {spinner:.cyan} Waiting for sign-in... [{bar:30.dim}] {msg}")
+                    .unwrap()
+                    .progress_chars("=>-"),
+            );
+            Some(pb)
+        } else {
+            None
+        };
+
         loop {
-            if start.elapsed() > timeout {
+            let elapsed = start.elapsed();
+            if elapsed > timeout {
+                if let Some(ref pb) = pb {
+                    pb.finish_and_clear();
+                }
                 return Err(AppError::DeviceCodeAuthFailed(
-                    "Authentication timeout (15 minutes). Please try again.".to_string(),
+                    "Authentication timed out. Please try again.".to_string(),
                 ));
+            }
+
+            // Update countdown message
+            if let Some(ref pb) = pb {
+                let remaining = timeout_secs.saturating_sub(elapsed.as_secs());
+                let mins = remaining / 60;
+                let secs = remaining % 60;
+                pb.set_position(elapsed.as_secs());
+                pb.set_message(format!("{}:{:02} remaining", mins, secs));
             }
 
             sleep(interval).await;
@@ -138,7 +204,11 @@ impl DeviceCodeAuth {
                 .await
             {
                 Ok(token) => {
-                    println!("✓ Authentication successful!\n");
+                    if let Some(ref pb) = pb {
+                        pb.finish_and_clear();
+                    }
+                    eprintln!("  {} {}", style("[+]").green(), style("Authentication successful!").green().bold());
+                    eprintln!();
                     return Ok(token);
                 }
                 Err(RequestTokenError::ServerResponse(err)) => {
@@ -153,16 +223,25 @@ impl DeviceCodeAuth {
                             continue;
                         }
                         DeviceCodeErrorResponseType::ExpiredToken => {
+                            if let Some(ref pb) = pb {
+                                pb.finish_and_clear();
+                            }
                             return Err(AppError::DeviceCodeAuthFailed(
                                 "Device code expired. Please try again.".to_string(),
                             ));
                         }
                         DeviceCodeErrorResponseType::AccessDenied => {
+                            if let Some(ref pb) = pb {
+                                pb.finish_and_clear();
+                            }
                             return Err(AppError::DeviceCodeAuthFailed(
                                 "User declined authorization".to_string(),
                             ));
                         }
                         _ => {
+                            if let Some(ref pb) = pb {
+                                pb.finish_and_clear();
+                            }
                             return Err(AppError::DeviceCodeAuthFailed(format!(
                                 "Server error: {:?}",
                                 err
@@ -171,12 +250,18 @@ impl DeviceCodeAuth {
                     }
                 }
                 Err(RequestTokenError::Request(e)) => {
+                    if let Some(ref pb) = pb {
+                        pb.finish_and_clear();
+                    }
                     return Err(AppError::DeviceCodeAuthFailed(format!(
                         "Network error during token request: {}",
                         e
                     )));
                 }
                 Err(e) => {
+                    if let Some(ref pb) = pb {
+                        pb.finish_and_clear();
+                    }
                     return Err(AppError::DeviceCodeAuthFailed(format!(
                         "Token request failed: {}",
                         e
@@ -190,8 +275,8 @@ impl DeviceCodeAuth {
 #[async_trait]
 impl AuthProvider for DeviceCodeAuth {
     async fn get_credentials(&self) -> Result<Credentials> {
-        let token = self.fetch_token().await?;
-        Ok(Credentials::BearerToken(token))
+        let result = self.fetch_token().await?;
+        Ok(Credentials::BearerToken(result.access_token))
     }
 
     fn method_name(&self) -> &'static str {
@@ -237,5 +322,28 @@ mod tests {
         )
         .unwrap();
         assert!(auth.scope.contains("cognitiveservices.azure.cn"));
+    }
+
+    #[test]
+    fn test_token_result_structure() {
+        let result = TokenResult {
+            access_token: "test-token".to_string(),
+            expires_in_secs: 3600,
+            scope: "https://cognitiveservices.azure.com/.default".to_string(),
+        };
+        assert_eq!(result.expires_in_secs, 3600);
+        assert_eq!(result.access_token, "test-token");
+    }
+
+    #[test]
+    fn test_quiet_mode() {
+        let auth = DeviceCodeAuth::new(
+            "tenant-id".to_string(),
+            None,
+            &Cloud::Global,
+        )
+        .unwrap()
+        .with_quiet(true);
+        assert!(auth.quiet);
     }
 }

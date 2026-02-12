@@ -1,11 +1,75 @@
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use std::path::PathBuf;
 
+const MAIN_EXAMPLES: &str = "\
+Quick start:
+  azure-aitoolsconnect test --api-key YOUR_KEY --region eastus
+  azure-aitoolsconnect login --tenant YOUR_TENANT_ID
+  azure-aitoolsconnect diagnose --region eastus";
+
+const TEST_EXAMPLES: &str = "\
+EXAMPLES:
+  # Test all services with an API key
+  azure-aitoolsconnect test --api-key YOUR_KEY --region eastus
+
+  # Test speech service with device code (interactive login)
+  azure-aitoolsconnect test -s speech --auth device-code --tenant YOUR_TENANT_ID \\
+    --endpoint https://your-resource.cognitiveservices.azure.com
+
+  # Test with a manually obtained bearer token
+  azure-aitoolsconnect test -s language --auth manual-token \\
+    --bearer-token eyJ... --endpoint https://your-resource.cognitiveservices.azure.com
+
+  # Test and display the bearer token for use in curl/Postman
+  azure-aitoolsconnect test -s speech --auth device-code --tenant YOUR_TENANT_ID --show-token
+
+  # Run specific test scenarios only
+  azure-aitoolsconnect test -s speech --scenarios voices_list,tts --api-key KEY -r eastus
+
+  # Output as JSON for scripting
+  azure-aitoolsconnect test -s translator --api-key KEY -r eastus -o json
+
+  # Output as JUnit XML for CI/CD
+  azure-aitoolsconnect test --api-key KEY -o junit --output-file results.xml --quiet";
+
+const LOGIN_EXAMPLES: &str = "\
+EXAMPLES:
+  # Get a bearer token via device code flow
+  azure-aitoolsconnect login --tenant YOUR_TENANT_ID
+
+  # Get token and save for subsequent test commands
+  azure-aitoolsconnect login --tenant YOUR_TENANT_ID --save
+
+  # Get token as JSON (for scripting)
+  azure-aitoolsconnect login --tenant YOUR_TENANT_ID -o json
+
+  # Use managed identity (on Azure VM/App Service)
+  azure-aitoolsconnect login --auth managed-identity
+
+  # Clear cached tokens
+  azure-aitoolsconnect login --clear-cache";
+
+const DIAGNOSE_EXAMPLES: &str = "\
+EXAMPLES:
+  # Full diagnostics for a region
+  azure-aitoolsconnect diagnose --region eastus
+
+  # DNS resolution check only
+  azure-aitoolsconnect diagnose --dns --region eastus
+
+  # Check a custom endpoint
+  azure-aitoolsconnect diagnose -e your-resource.cognitiveservices.azure.com -r eastus";
+
 /// Azure AI Services Connectivity Testing CLI Tool
+///
+/// Test connectivity from clients to Azure AI Services in complex network
+/// configurations. Supports Speech, Translator, Language, Vision, and
+/// Document Intelligence services.
 #[derive(Parser, Debug)]
 #[command(name = "azure-aitoolsconnect")]
 #[command(author, version, about, long_about = None)]
 #[command(propagate_version = true)]
+#[command(after_help = MAIN_EXAMPLES)]
 pub struct Cli {
     /// Path to configuration file
     #[arg(short, long, global = true, env = "AZURE_AITOOLSCONNECT_CONFIG")]
@@ -28,6 +92,9 @@ pub enum Commands {
     /// Run connectivity tests against Azure AI Services
     Test(TestArgs),
 
+    /// Authenticate and obtain a bearer token
+    Login(LoginArgs),
+
     /// Run network diagnostics
     Diagnose(DiagnoseArgs),
 
@@ -42,6 +109,7 @@ pub enum Commands {
 }
 
 #[derive(Args, Debug)]
+#[command(after_help = TEST_EXAMPLES)]
 pub struct TestArgs {
     /// Services to test (comma-separated, or 'all')
     #[arg(short, long, default_value = "all", value_delimiter = ',')]
@@ -94,9 +162,50 @@ pub struct TestArgs {
     /// Write output to file
     #[arg(long)]
     pub output_file: Option<PathBuf>,
+
+    /// Display the bearer token after authentication (for use in curl/Postman)
+    #[arg(long, default_value_t = false)]
+    pub show_token: bool,
+
+    /// Skip reading cached tokens from disk
+    #[arg(long, default_value_t = false)]
+    pub no_cache: bool,
 }
 
 #[derive(Args, Debug)]
+#[command(after_help = LOGIN_EXAMPLES)]
+pub struct LoginArgs {
+    /// Tenant ID for authentication
+    #[arg(long, env = "AZURE_USER_TENANT_ID")]
+    pub tenant: Option<String>,
+
+    /// Authentication method
+    #[arg(long, value_enum, default_value_t = LoginAuthMethodArg::DeviceCode)]
+    pub auth: LoginAuthMethodArg,
+
+    /// Cloud environment
+    #[arg(long, value_enum, default_value_t = CloudArg::Global)]
+    pub cloud: CloudArg,
+
+    /// Custom public client ID (advanced)
+    #[arg(long)]
+    pub client_id: Option<String>,
+
+    /// Output format
+    #[arg(short, long, value_enum, default_value_t = OutputFormatArg::Human)]
+    pub output: OutputFormatArg,
+
+    /// Save token to cache for subsequent test commands
+    #[arg(long, default_value_t = false)]
+    pub save: bool,
+
+    /// Clear cached tokens and exit
+    #[arg(long, default_value_t = false)]
+    pub clear_cache: bool,
+}
+
+#[derive(Args, Debug)]
+#[command(after_help = DIAGNOSE_EXAMPLES)]
 pub struct DiagnoseArgs {
     /// Run DNS diagnostics
     #[arg(long, default_value_t = false)]
@@ -136,6 +245,10 @@ pub struct InitArgs {
     /// Overwrite existing file
     #[arg(long, default_value_t = false)]
     pub force: bool,
+
+    /// Interactive setup wizard
+    #[arg(short, long, default_value_t = false)]
+    pub interactive: bool,
 }
 
 #[derive(Args, Debug)]
@@ -177,6 +290,16 @@ impl From<AuthMethodArg> for crate::config::AuthMethod {
             AuthMethodArg::ManualToken => crate::config::AuthMethod::ManualToken,
         }
     }
+}
+
+/// Authentication methods available for the login command
+#[derive(ValueEnum, Clone, Debug, Default)]
+pub enum LoginAuthMethodArg {
+    #[default]
+    #[value(name = "device-code")]
+    DeviceCode,
+    #[value(name = "managed-identity")]
+    ManagedIdentity,
 }
 
 #[derive(ValueEnum, Clone, Debug, Default)]

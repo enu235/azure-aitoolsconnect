@@ -35,6 +35,10 @@ pub struct TestRunnerConfig {
     pub verbose: bool,
     /// Quiet mode (no progress indicators)
     pub quiet: bool,
+    /// Display the bearer token after authentication
+    pub show_token: bool,
+    /// Skip reading cached tokens from disk
+    pub no_cache: bool,
 }
 
 impl TestRunnerConfig {
@@ -55,6 +59,8 @@ impl TestRunnerConfig {
         bearer_token: Option<String>,
         verbose: bool,
         quiet: bool,
+        show_token: bool,
+        no_cache: bool,
     ) -> Self {
         // Use provided values or fall back to config
         let api_key = api_key.or_else(|| {
@@ -105,6 +111,8 @@ impl TestRunnerConfig {
             user_config: Some(user_config),
             verbose,
             quiet,
+            show_token,
+            no_cache,
         }
     }
 }
@@ -176,13 +184,34 @@ impl TestRunner {
 
     /// Get credentials based on auth method
     async fn get_credentials(&self) -> Result<Credentials> {
+        // Try disk cache first for device-code auth (unless --no-cache)
+        if !self.config.no_cache && self.config.auth_method == AuthMethod::DeviceCode {
+            if let Ok(cache) = crate::auth::token_cache::TokenCacheFile::load() {
+                let scope = self.config.cloud.cognitive_scope();
+                let tenant_id = self.config.user_config.as_ref()
+                    .and_then(|c| c.tenant_id.as_deref())
+                    .unwrap_or("");
+                if let Some(entry) = cache.get_valid_token(scope, tenant_id) {
+                    if !self.config.quiet {
+                        eprintln!(
+                            "  {} Using cached token ({} minutes remaining)",
+                            console::style("[*]").cyan(),
+                            entry.remaining_minutes()
+                        );
+                    }
+                    return Ok(Credentials::BearerToken(entry.access_token.clone()));
+                }
+            }
+        }
+
         // Create AuthManager with the current configuration
-        let auth_manager = AuthManager::new(
+        let auth_manager = AuthManager::new_with_options(
             self.config.api_key.clone(),
             self.config.entra_config.as_ref(),
             self.config.user_config.as_ref(),
             self.config.cloud,
             self.config.auth_method,
+            self.config.quiet,
         )?;
 
         // Get the provider and fetch credentials
@@ -193,6 +222,15 @@ impl TestRunner {
     /// Run tests for all configured services
     pub async fn run(&self) -> Result<TestReport> {
         let credentials = self.get_credentials().await?;
+
+        // Display token if requested
+        if self.config.show_token {
+            if let Credentials::BearerToken(ref token) = credentials {
+                eprintln!("{}", console::style("Bearer Token:").bold());
+                eprintln!("{}", token);
+                eprintln!();
+            }
+        }
         let input = self.load_input()?;
 
         let mut all_results = Vec::new();
