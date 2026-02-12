@@ -8,6 +8,7 @@ use azure_aitoolsconnect::{
 };
 use clap::Parser;
 use console::style;
+use std::io::IsTerminal;
 use std::process::ExitCode as StdExitCode;
 
 #[tokio::main]
@@ -85,7 +86,7 @@ async fn run_test(
 
     // Format output
     let output_format = args.output.into();
-    let use_colors = atty::is(atty::Stream::Stdout) && !quiet;
+    let use_colors = std::io::stdout().is_terminal() && !quiet;
     let formatter = get_formatter(output_format, use_colors);
     let output = formatter.format(&report);
 
@@ -242,7 +243,7 @@ async fn run_diagnose(
     .await;
 
     // Format output
-    let use_colors = atty::is(atty::Stream::Stdout) && !quiet;
+    let use_colors = std::io::stdout().is_terminal() && !quiet;
 
     match args.output {
         azure_aitoolsconnect::cli::OutputFormatArg::Json => {

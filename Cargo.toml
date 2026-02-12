@@ -58,9 +58,6 @@ async-trait = "0.1"
 # Environment variables
 dotenvy = "0.15"
 
-# Terminal detection
-atty = "0.2"
-
 # OAuth2 for device code flow and user authentication
 oauth2 = "4.4"
 serde_urlencoded = "0.7"
