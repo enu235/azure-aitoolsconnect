@@ -6,9 +6,13 @@ A Rust-based CLI tool for verifying connectivity from clients to Azure AI Servic
 
 - **Multi-Service Testing** - Test Speech, Translator, Language, Vision, and Document Intelligence services
 - **Multiple Authentication Methods** - API keys, device code flow, managed identity, manual tokens, service principals, and cognitive token exchange
-- **User-Friendly Authentication** - No Azure CLI required - authenticate directly via device code flow
+- **Standalone Token Acquisition** - `login` command gets bearer tokens without running tests, with optional disk caching
+- **User-Friendly Authentication** - No Azure CLI required - authenticate directly via device code flow with countdown timer
+- **Token Caching** - Cache tokens to disk with `--save` to avoid re-authentication across runs
 - **Azure Environment Support** - Automatic authentication in Azure VMs, App Service, and Container Apps via managed identity
 - **Network Diagnostics** - DNS resolution, TLS handshake validation, and latency measurement
+- **Actionable Error Messages** - Every error includes a hint with specific remediation steps
+- **Interactive Setup** - `init --interactive` wizard walks you through configuration
 - **Flexible Configuration** - TOML files with environment variable overrides
 - **Multiple Output Formats** - Human-readable, JSON, and JUnit XML for CI/CD integration
 - **Cloud Support** - Global Azure and Azure China (Mooncake)
@@ -72,12 +76,14 @@ flowchart LR
     D --> E{Command?}
 
     E -->|test| F[Run Tests]
+    E -->|login| F2[Get Token]
     E -->|diagnose| G[Network Diagnostics]
     E -->|init| H[Create Config]
     E -->|validate| I[Validate Config]
     E -->|list-scenarios| J[Show Scenarios]
 
     F --> K[Format Output]
+    F2 --> K
     G --> K
     K --> L[Exit Code]
 ```
@@ -88,26 +94,38 @@ flowchart LR
 sequenceDiagram
     participant User
     participant CLI
+    participant Cache
     participant AuthManager
     participant Azure
 
-    User->>CLI: Run test command
-    CLI->>AuthManager: Request credentials
+    User->>CLI: Run test/login command
+    CLI->>Cache: Check disk cache
 
-    alt API Key Auth
-        AuthManager->>Azure: Request with Ocp-Apim-Subscription-Key header
-    else Entra ID Token
-        AuthManager->>Azure: OAuth2 client credentials request
-        Azure-->>AuthManager: Access token (cached)
-        AuthManager->>Azure: Request with Bearer token
-    else Cognitive Token
-        AuthManager->>Azure: Exchange API key for token
-        Azure-->>AuthManager: Short-lived token (10 min)
-        AuthManager->>Azure: Request with token
+    alt Cached token valid
+        Cache-->>CLI: Cached bearer token
+    else No cache or expired
+        CLI->>AuthManager: Request credentials
+        alt API Key Auth
+            AuthManager->>Azure: Request with Ocp-Apim-Subscription-Key header
+        else Device Code Flow
+            AuthManager->>User: Display code + URL
+            User->>Azure: Enter code at microsoft.com/devicelogin
+            Azure-->>AuthManager: Bearer token
+        else Managed Identity
+            AuthManager->>Azure: IMDS/App Service token request
+            Azure-->>AuthManager: Bearer token
+        else Entra ID (Service Principal)
+            AuthManager->>Azure: OAuth2 client credentials request
+            Azure-->>AuthManager: Bearer token
+        else Manual Token
+            AuthManager-->>CLI: User-provided bearer token
+        end
     end
 
+    CLI->>Cache: Save token (if --save)
+    CLI->>Azure: API request with credentials
     Azure-->>CLI: Response
-    CLI-->>User: Test results
+    CLI-->>User: Test results / token output
 ```
 
 ## Test Execution Flow
@@ -173,14 +191,25 @@ cargo install --path .
 ## Quick Start
 
 ```bash
-# Initialize a configuration file
-azure-aitoolsconnect init --output config.toml
+# Initialize a configuration file (interactive wizard)
+azure-aitoolsconnect init --interactive --output config.toml
 
 # Test all services with an API key
 azure-aitoolsconnect test \
   --services all \
   --api-key YOUR_API_KEY \
   --region eastus
+
+# Get a bearer token interactively (no Azure CLI needed)
+azure-aitoolsconnect login --tenant YOUR_TENANT_ID --save
+
+# Test with device code auth and display the token
+azure-aitoolsconnect test \
+  --services speech,translator \
+  --auth device-code \
+  --tenant YOUR_TENANT_ID \
+  --endpoint https://your-resource.cognitiveservices.azure.com \
+  --show-token
 
 # Run network diagnostics
 azure-aitoolsconnect diagnose \
@@ -256,8 +285,12 @@ Azure AI Tools Connect supports six authentication methods to accommodate differ
 # API Key (simplest)
 azure-aitoolsconnect test --api-key YOUR_KEY --region eastus
 
-# Device Code Flow (no Azure CLI needed)
-azure-aitoolsconnect test --auth device-code --tenant YOUR_TENANT_ID --region eastus
+# Get a bearer token standalone (no Azure CLI needed)
+azure-aitoolsconnect login --tenant YOUR_TENANT_ID --save
+
+# Device Code Flow with token display
+azure-aitoolsconnect test --auth device-code --tenant YOUR_TENANT_ID \
+  --endpoint https://your-resource.cognitiveservices.azure.com --show-token
 
 # Managed Identity (Azure environments)
 azure-aitoolsconnect test --auth managed-identity --region eastus
@@ -271,6 +304,7 @@ azure-aitoolsconnect test --auth token --region eastus
 
 | Scenario | Method | Why |
 |----------|--------|-----|
+| Get a token for other tools | `login` command | Standalone token acquisition, cacheable |
 | Local development | Device Code | No Azure CLI, works everywhere |
 | Azure VM/App Service | Managed Identity | Secure, no credentials |
 | CI/CD Pipelines | Service Principal | Designed for automation |
@@ -355,12 +389,17 @@ These are Azure platform limitations, not tool bugs. Use the modern Speech SDK o
 azure-aitoolsconnect/
 ├── Cargo.toml              # Project manifest
 ├── src/
-│   ├── main.rs             # CLI entry point
+│   ├── main.rs             # CLI entry point & login/init commands
 │   ├── lib.rs              # Library exports
-│   ├── cli/mod.rs          # Command definitions
-│   ├── config/mod.rs       # Configuration management
-│   ├── auth/mod.rs         # Authentication providers
-│   ├── error/mod.rs        # Error types & exit codes
+│   ├── cli/mod.rs          # Command definitions & help examples
+│   ├── config/mod.rs       # Configuration management & validation
+│   ├── auth/
+│   │   ├── mod.rs          # Authentication manager
+│   │   ├── device_code.rs  # Device code flow with countdown UX
+│   │   ├── managed_identity.rs  # Azure managed identity
+│   │   ├── manual_token.rs # Manual bearer token
+│   │   └── token_cache.rs  # Disk-based token caching
+│   ├── error/mod.rs        # Error types, exit codes & hints
 │   ├── output/mod.rs       # Output formatting
 │   ├── testing/mod.rs      # Test runner
 │   ├── network/mod.rs      # Network diagnostics

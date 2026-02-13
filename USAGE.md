@@ -7,6 +7,7 @@ This guide provides detailed instructions for using Azure AI Tools Connect to ve
 - [Getting Started](#getting-started)
 - [Commands](#commands)
   - [test](#test-command)
+  - [login](#login-command)
   - [diagnose](#diagnose-command)
   - [init](#init-command)
   - [validate](#validate-command)
@@ -25,10 +26,14 @@ This guide provides detailed instructions for using Azure AI Tools Connect to ve
 ### Step 1: Create a Configuration File
 
 ```bash
+# Interactive wizard (recommended)
+azure-aitoolsconnect init --interactive --output config.toml
+
+# Or create a template to edit manually
 azure-aitoolsconnect init --output config.toml
 ```
 
-This creates a configuration template with all available options.
+The interactive wizard walks you through cloud, region, auth method, and services.
 
 ### Step 2: Configure Your API Keys
 
@@ -51,7 +56,13 @@ export AZURE_REGION="eastus"
 ### Step 3: Run Your First Test
 
 ```bash
+# With API key
 azure-aitoolsconnect test --services speech --config config.toml
+
+# Or with device code auth (no API key needed)
+azure-aitoolsconnect test --services speech \
+  --auth device-code --tenant YOUR_TENANT_ID \
+  --endpoint https://your-resource.cognitiveservices.azure.com
 ```
 
 ---
@@ -72,22 +83,33 @@ azure-aitoolsconnect test [OPTIONS]
 |--------|-------|-------------|---------|
 | `--services <LIST>` | `-s` | Services to test (comma-separated or "all") | all |
 | `--api-key <KEY>` | `-k` | API key for authentication | - |
+| `--auth <METHOD>` | `-a` | Auth method (key/device-code/managed-identity/manual-token/token/both) | key |
 | `--region <REGION>` | `-r` | Azure region | eastus |
 | `--cloud <CLOUD>` | `-c` | Cloud environment (global/china) | global |
+| `--tenant <ID>` | | Tenant ID for device code flow | - |
+| `--bearer-token <TOKEN>` | | Bearer token for manual-token auth | - |
+| `--endpoint <URL>` | `-e` | Custom endpoint URL | - |
 | `--output <FORMAT>` | `-o` | Output format (human/json/junit) | human |
 | `--output-file <FILE>` | `-f` | Write output to file | - |
 | `--timeout <SECONDS>` | `-t` | Request timeout | 30 |
 | `--scenario <ID>` | | Run specific scenario | - |
 | `--input-file <PATH>` | `-i` | Input file for tests (audio/image/document) | - |
-| `--endpoint <URL>` | `-e` | Custom endpoint URL | - |
+| `--show-token` | | Display the bearer token on stderr after authentication | false |
+| `--no-cache` | | Skip reading cached tokens from disk | false |
 | `--verbose` | `-v` | Show detailed output | false |
 | `--quiet` | `-q` | Suppress progress indicators | false |
 
 #### Examples
 
 ```bash
-# Test all services
+# Test all services with API key
 azure-aitoolsconnect test --services all --api-key $KEY --region eastus
+
+# Test with device code auth and display the token
+azure-aitoolsconnect test --services speech \
+  --auth device-code --tenant YOUR_TENANT_ID \
+  --endpoint https://your-resource.cognitiveservices.azure.com \
+  --show-token
 
 # Test specific services
 azure-aitoolsconnect test --services speech,translator --api-key $KEY
@@ -103,9 +125,111 @@ azure-aitoolsconnect test --services speech --scenario stt_short \
 azure-aitoolsconnect test --services all --output json \
   --output-file results.json
 
-# Use custom endpoint
+# Use custom endpoint with bearer token
 azure-aitoolsconnect test --services speech \
+  --auth manual-token --bearer-token $TOKEN \
   --endpoint https://my-custom-endpoint.cognitiveservices.azure.com
+
+# Force fresh authentication (ignore cached tokens)
+azure-aitoolsconnect test --auth device-code --tenant $TENANT --no-cache
+```
+
+---
+
+### login Command
+
+Get a bearer token interactively without running tests. Useful for support engineers who need tokens for other tools (curl, Postman, etc.).
+
+```bash
+azure-aitoolsconnect login [OPTIONS]
+```
+
+#### Options
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--tenant <ID>` | Tenant ID (required for device-code) | - |
+| `--auth <METHOD>` | Auth method (device-code/managed-identity) | device-code |
+| `--cloud <CLOUD>` | Cloud environment (global/china) | global |
+| `--client-id <ID>` | Custom OAuth client ID | Azure CLI client ID |
+| `--output <FORMAT>` | Output format (human/json) | human |
+| `--save` | Cache the token to disk for subsequent commands | false |
+| `--clear-cache` | Clear all cached tokens and exit | false |
+
+#### Token Caching Flow
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant CLI
+    participant DiskCache
+    participant Azure
+
+    User->>CLI: login --tenant ID --save
+    CLI->>DiskCache: Check for cached token
+    alt Valid cached token exists
+        DiskCache-->>CLI: Cached token
+        CLI-->>User: Token (from cache)
+    else No valid cache
+        CLI->>User: Display device code + URL
+        User->>Azure: Enter code at microsoft.com/devicelogin
+        Azure-->>CLI: Bearer token
+        CLI->>DiskCache: Save token (--save)
+        CLI-->>User: Bearer token
+    end
+```
+
+#### Examples
+
+```bash
+# Get a token interactively (device code flow)
+azure-aitoolsconnect login --tenant YOUR_TENANT_ID
+
+# Get a token and save it to disk cache
+azure-aitoolsconnect login --tenant YOUR_TENANT_ID --save
+
+# Get token as JSON (for scripting)
+azure-aitoolsconnect login --tenant YOUR_TENANT_ID --output json
+
+# Get token via managed identity (on Azure)
+azure-aitoolsconnect login --auth managed-identity
+
+# Clear all cached tokens
+azure-aitoolsconnect login --clear-cache
+```
+
+#### Interactive Device Code Flow
+
+```
+======================================================================
+  [*] Azure Authentication Required
+======================================================================
+
+  1. Open this URL in your browser:
+     https://microsoft.com/devicelogin
+
+  2. Enter this code:  ABCD1234
+
+======================================================================
+  > Waiting for sign-in... [=============>------] 12:34 remaining
+
+  [+] Authentication successful!
+
+Bearer Token (expires in ~59 minutes):
+eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
+```
+
+#### JSON Output
+
+```bash
+$ azure-aitoolsconnect login --tenant $TENANT --output json
+```
+
+```json
+{
+  "access_token": "eyJhbGciOiJSUzI1NiIs...",
+  "expires_in_minutes": 59
+}
 ```
 
 ---
@@ -163,7 +287,7 @@ eastus.api.cognitive.microsoft.com: avg 45ms, min 42ms, max 51ms
 
 ### init Command
 
-Initialize a new configuration file with default settings.
+Initialize a new configuration file. Use `--interactive` for a guided wizard that asks about your cloud, region, auth method, and services.
 
 ```bash
 azure-aitoolsconnect init [OPTIONS]
@@ -171,15 +295,32 @@ azure-aitoolsconnect init [OPTIONS]
 
 #### Options
 
-| Option | Description |
-|--------|-------------|
-| `--output <FILE>` | Output file path (default: config.toml) |
-| `--force` | Overwrite existing file |
+| Option | Short | Description |
+|--------|-------|-------------|
+| `--output <FILE>` | | Output file path (default: config.toml) |
+| `--force` | | Overwrite existing file |
+| `--interactive` | `-i` | Launch interactive configuration wizard |
+
+#### Interactive Wizard Flow
+
+```mermaid
+flowchart LR
+    Start[init --interactive] --> Cloud[Cloud?<br/>global / china]
+    Cloud --> Region[Region?<br/>e.g. eastus]
+    Region --> Auth[Auth method?<br/>key / device-code /<br/>managed-identity / manual-token]
+    Auth --> Creds[Credentials?<br/>API key or tenant ID]
+    Creds --> Endpoint[Custom endpoint?<br/>optional]
+    Endpoint --> Services[Services?<br/>all or pick specific]
+    Services --> File[Write config.toml]
+```
 
 #### Examples
 
 ```bash
-# Create default config
+# Interactive wizard (recommended for first-time setup)
+azure-aitoolsconnect init --interactive
+
+# Create default config template
 azure-aitoolsconnect init
 
 # Create config at specific path
@@ -520,17 +661,28 @@ tenant_id = "your-tenant-id"
 **Interactive Flow:**
 ```
 ======================================================================
-  Azure Authentication Required
+  [*] Azure Authentication Required
 ======================================================================
 
-  Please visit:  https://microsoft.com/devicelogin
+  1. Open this URL in your browser:
+     https://microsoft.com/devicelogin
 
-  And enter code:  ABCD1234
+  2. Enter this code:  ABCD1234
 
 ======================================================================
+  > Waiting for sign-in... [=============>------] 12:34 remaining
 
-Waiting for authentication...
-✓ Authentication successful!
+  [+] Authentication successful!
+```
+
+You can also get a token standalone with the `login` command:
+```bash
+# Get token and cache it for subsequent test commands
+azure-aitoolsconnect login --tenant YOUR_TENANT_ID --save
+
+# Then run tests (uses cached token, no re-authentication)
+azure-aitoolsconnect test --auth device-code --tenant YOUR_TENANT_ID \
+  --endpoint https://your-resource.cognitiveservices.azure.com
 ```
 
 ### 3. Managed Identity (Azure Environments)
@@ -630,21 +782,31 @@ azure-aitoolsconnect test --auth both
 
 ### Troubleshooting Authentication
 
+The tool provides actionable hints with every error. For example:
+
+```
+Error: User authentication requires a tenant ID
+
+Hint: Use --tenant YOUR_TENANT_ID or set AZURE_USER_TENANT_ID.
+      Find your tenant ID: Azure Portal > Microsoft Entra ID > Overview
+```
+
 **Device Code Flow:**
-- **Missing Tenant ID:** Error message "User authentication requires tenant ID"
-  - Solution: Provide `--tenant` argument or set `AZURE_USER_TENANT_ID`
-- **Timeout:** If authentication not completed within 15 minutes
-  - Solution: Run the command again and complete authentication promptly
+- **Missing Tenant ID:** Use `--tenant` or set `AZURE_USER_TENANT_ID`
+- **Timeout:** Run the command again and complete sign-in within the countdown timer
+- **Need token for other tools:** Use `azure-aitoolsconnect login --tenant ID --save`
 
 **Managed Identity:**
-- **Not Available:** "Managed identity not available in this environment"
-  - Solution: Ensure running on Azure resource with MI enabled, or use different auth method
-- **Permission Denied:** Token obtained but API calls fail
-  - Solution: Grant the managed identity access to Cognitive Services resources
+- **Not Available:** Ensure running on Azure resource with MI enabled, or use `--auth device-code`
+- **Permission Denied:** Grant the managed identity **Cognitive Services User** role on the resource
 
 **Manual Token:**
-- **Invalid Token:** "Invalid bearer token" error
-  - Solution: Ensure token is valid, not expired, and has correct audience/scope
+- **Invalid Token:** Ensure token is valid, not expired, and has correct audience/scope
+- **Get a fresh token:** Use `azure-aitoolsconnect login --tenant ID` to acquire one
+
+**Token Caching:**
+- **Stale token:** Use `--no-cache` to force re-authentication
+- **Clear all cached tokens:** `azure-aitoolsconnect login --clear-cache`
 
 ---
 
