@@ -136,6 +136,8 @@ pub enum AuthMethod {
     ManagedIdentity,
     #[serde(rename = "manual_token")]
     ManualToken,
+    #[serde(rename = "interactive")]
+    Interactive,
 }
 
 impl std::fmt::Display for AuthMethod {
@@ -147,6 +149,7 @@ impl std::fmt::Display for AuthMethod {
             AuthMethod::DeviceCode => write!(f, "device-code"),
             AuthMethod::ManagedIdentity => write!(f, "managed-identity"),
             AuthMethod::ManualToken => write!(f, "manual-token"),
+            AuthMethod::Interactive => write!(f, "interactive"),
         }
     }
 }
@@ -166,6 +169,7 @@ impl std::str::FromStr for AuthMethod {
             "manual-token" | "manual_token" | "manualtoken" | "manual" => {
                 Ok(AuthMethod::ManualToken)
             }
+            "interactive" | "browser" => Ok(AuthMethod::Interactive),
             _ => Err(AppError::Config(format!("Unknown auth method: {}", s))),
         }
     }
@@ -478,6 +482,17 @@ pub fn validate_config(config: &Config) -> Result<Vec<String>> {
         }
     }
 
+    // Check interactive config
+    if config.auth.default_method == AuthMethod::Interactive
+        && config.auth.user.tenant_id.is_none()
+    {
+        warnings.push(
+            "Interactive auth selected but tenant_id is not configured in [auth.user]. \
+             Use --tenant on the command line or set AZURE_USER_TENANT_ID."
+                .to_string(),
+        );
+    }
+
     // Check device-code config
     if config.auth.default_method == AuthMethod::DeviceCode && config.auth.user.tenant_id.is_none()
     {
@@ -514,7 +529,7 @@ pub fn validate_config(config: &Config) -> Result<Vec<String>> {
     // Check bearer token auth without custom endpoint
     if matches!(
         config.auth.default_method,
-        AuthMethod::DeviceCode | AuthMethod::ManualToken | AuthMethod::ManagedIdentity
+        AuthMethod::DeviceCode | AuthMethod::ManualToken | AuthMethod::ManagedIdentity | AuthMethod::Interactive
     ) {
         let has_custom_endpoint = config.services.values().any(|s| s.endpoint.is_some());
         if !has_custom_endpoint {

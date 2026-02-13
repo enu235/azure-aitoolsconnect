@@ -120,6 +120,64 @@ async fn run_login(
     let cloud: Cloud = args.cloud.into();
 
     match args.auth {
+        azure_aitoolsconnect::cli::LoginAuthMethodArg::Interactive => {
+            let tenant_id = args
+                .tenant
+                .ok_or(azure_aitoolsconnect::AppError::MissingTenantId)?;
+
+            // Check disk cache first
+            let scope = cloud.cognitive_scope();
+            if let Ok(cache) = TokenCacheFile::load() {
+                if let Some(entry) = cache.get_valid_token(scope, &tenant_id) {
+                    if !quiet {
+                        eprintln!(
+                            "  {} Using cached token ({} minutes remaining)",
+                            style("[*]").cyan(),
+                            entry.remaining_minutes()
+                        );
+                        eprintln!();
+                    }
+                    output_token(
+                        &entry.access_token,
+                        entry.remaining_minutes() as u64,
+                        &args.output,
+                    );
+                    return Ok(ExitCode::Success);
+                }
+            }
+
+            let auth = azure_aitoolsconnect::auth::InteractiveAuth::new(
+                tenant_id.clone(),
+                args.client_id.clone(),
+                &cloud,
+            )?
+            .with_quiet(quiet);
+
+            let result = auth.authenticate().await?;
+
+            // Save to cache if requested
+            if args.save {
+                let mut cache = TokenCacheFile::load().unwrap_or_default();
+                cache.insert(CachedTokenEntry {
+                    access_token: result.access_token.clone(),
+                    expires_at: Utc::now()
+                        + chrono::Duration::seconds(result.expires_in_secs as i64),
+                    scope: result.scope.clone(),
+                    tenant_id: tenant_id.clone(),
+                });
+                cache.save()?;
+                if !quiet {
+                    eprintln!("  {} Token saved to cache.", style("[+]").green());
+                    eprintln!();
+                }
+            }
+
+            output_token(
+                &result.access_token,
+                result.expires_in_secs / 60,
+                &args.output,
+            );
+        }
         azure_aitoolsconnect::cli::LoginAuthMethodArg::DeviceCode => {
             let tenant_id = args
                 .tenant

@@ -7,21 +7,23 @@ use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
 
 mod device_code;
+mod interactive;
 mod managed_identity;
 mod manual_token;
 pub mod token_cache;
 
 pub use device_code::{DeviceCodeAuth, TokenResult};
+pub use interactive::InteractiveAuth;
 pub use managed_identity::ManagedIdentityAuth;
 pub use manual_token::ManualTokenAuth;
 
 /// Token response from Entra ID
 #[derive(Debug, Deserialize)]
-struct TokenResponse {
-    access_token: String,
-    expires_in: u64,
+pub(crate) struct TokenResponse {
+    pub access_token: String,
+    pub expires_in: u64,
     #[serde(rename = "token_type")]
-    _token_type: String,
+    pub _token_type: String,
 }
 
 /// Cached token with expiry
@@ -322,6 +324,7 @@ pub struct AuthManager {
     manual_token: Option<ManualTokenAuth>,
     managed_identity: Option<ManagedIdentityAuth>,
     device_code: Option<DeviceCodeAuth>,
+    interactive: Option<InteractiveAuth>,
     default_method: AuthMethod,
 }
 
@@ -397,12 +400,24 @@ impl AuthManager {
             None
         };
 
+        // Initialize interactive browser auth if requested
+        let interactive_auth = if default_method == AuthMethod::Interactive {
+            let tenant_id = user_config
+                .and_then(|c| c.tenant_id.clone())
+                .ok_or(AppError::MissingTenantId)?;
+            let client_id = user_config.and_then(|c| c.client_id.clone());
+            Some(InteractiveAuth::new(tenant_id, client_id, &cloud)?.with_quiet(quiet))
+        } else {
+            None
+        };
+
         Ok(Self {
             api_key: api_key_auth,
             entra: entra_auth,
             manual_token: manual_token_auth,
             managed_identity: managed_identity_auth,
             device_code: device_code_auth,
+            interactive: interactive_auth,
             default_method,
         })
     }
@@ -449,6 +464,13 @@ impl AuthManager {
                     Err(AppError::InvalidBearerToken(
                         "Bearer token not provided".to_string(),
                     ))
+                }
+            }
+            AuthMethod::Interactive => {
+                if let Some(ref interactive) = self.interactive {
+                    Ok(interactive as &dyn AuthProvider)
+                } else {
+                    Err(AppError::MissingTenantId)
                 }
             }
             AuthMethod::Both => {
