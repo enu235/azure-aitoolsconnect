@@ -34,11 +34,14 @@ EXAMPLES:
 
 const LOGIN_EXAMPLES: &str = "\
 EXAMPLES:
-  # Get a bearer token via device code flow
+  # Interactive browser login (default, works with Conditional Access)
   azure-aitoolsconnect login --tenant YOUR_TENANT_ID
 
   # Get token and save for subsequent test commands
   azure-aitoolsconnect login --tenant YOUR_TENANT_ID --save
+
+  # Device code flow (for headless/SSH environments)
+  azure-aitoolsconnect login --auth device-code --tenant YOUR_TENANT_ID
 
   # Get token as JSON (for scripting)
   azure-aitoolsconnect login --tenant YOUR_TENANT_ID -o json
@@ -277,6 +280,8 @@ pub enum AuthMethodArg {
     ManagedIdentity,
     #[value(name = "manual-token")]
     ManualToken,
+    #[value(name = "interactive")]
+    Interactive,
 }
 
 impl From<AuthMethodArg> for crate::config::AuthMethod {
@@ -288,6 +293,7 @@ impl From<AuthMethodArg> for crate::config::AuthMethod {
             AuthMethodArg::DeviceCode => crate::config::AuthMethod::DeviceCode,
             AuthMethodArg::ManagedIdentity => crate::config::AuthMethod::ManagedIdentity,
             AuthMethodArg::ManualToken => crate::config::AuthMethod::ManualToken,
+            AuthMethodArg::Interactive => crate::config::AuthMethod::Interactive,
         }
     }
 }
@@ -296,6 +302,8 @@ impl From<AuthMethodArg> for crate::config::AuthMethod {
 #[derive(ValueEnum, Clone, Debug, Default)]
 pub enum LoginAuthMethodArg {
     #[default]
+    #[value(name = "interactive")]
+    Interactive,
     #[value(name = "device-code")]
     DeviceCode,
     #[value(name = "managed-identity")]
