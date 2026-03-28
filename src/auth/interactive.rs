@@ -5,8 +5,7 @@ use async_trait::async_trait;
 use console::style;
 use oauth2::basic::BasicClient;
 use oauth2::{
-    AuthUrl, ClientId, CsrfToken, PkceCodeChallenge, PkceCodeVerifier,
-    RedirectUrl, Scope, TokenUrl,
+    AuthUrl, ClientId, CsrfToken, PkceCodeChallenge, PkceCodeVerifier, RedirectUrl, Scope, TokenUrl,
 };
 use std::io::{BufRead, Write};
 use std::net::TcpListener;
@@ -151,9 +150,7 @@ impl InteractiveAuth {
         }
 
         // Exchange authorization code for token
-        let token = self
-            .exchange_code(&code, &pkce_verifier, port)
-            .await?;
+        let token = self.exchange_code(&code, &pkce_verifier, port).await?;
 
         if !self.quiet {
             eprintln!(
@@ -176,10 +173,7 @@ impl InteractiveAuth {
         port: u16,
     ) -> Result<TokenResult> {
         let login_endpoint = self.cloud.login_endpoint();
-        let token_url = format!(
-            "{}/{}/oauth2/v2.0/token",
-            login_endpoint, self.tenant_id
-        );
+        let token_url = format!("{}/{}/oauth2/v2.0/token", login_endpoint, self.tenant_id);
 
         let client = reqwest::Client::builder()
             .timeout(Duration::from_secs(30))

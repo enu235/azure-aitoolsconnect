@@ -398,7 +398,7 @@ fn run_interactive_init() -> azure_aitoolsconnect::Result<Config> {
     // Auth method
     let auth_str = prompt_choice(
         "Authentication method",
-        &["key", "device-code", "managed-identity", "manual-token"],
+        &["key", "token", "device-code", "managed-identity"],
         "key",
     )?;
     let auth_method: AuthMethod = auth_str.parse().unwrap_or(AuthMethod::Key);
@@ -420,7 +420,7 @@ fn run_interactive_init() -> azure_aitoolsconnect::Result<Config> {
                 user_config.tenant_id = Some(tenant);
             }
         }
-        AuthMethod::ManualToken => {
+        AuthMethod::Token => {
             println!(
                 "  You can set the bearer token later with --bearer-token or AZURE_BEARER_TOKEN."
             );

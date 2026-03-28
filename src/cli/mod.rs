@@ -16,8 +16,8 @@ EXAMPLES:
   azure-aitoolsconnect test -s speech --auth device-code --tenant YOUR_TENANT_ID \\
     --endpoint https://your-resource.cognitiveservices.azure.com
 
-  # Test with a manually obtained bearer token
-  azure-aitoolsconnect test -s language --auth manual-token \\
+  # Test with a bearer token obtained from Azure CLI or another source
+  azure-aitoolsconnect test -s language --auth token \\
     --bearer-token eyJ... --endpoint https://your-resource.cognitiveservices.azure.com
 
   # Test and display the bearer token for use in curl/Postman
@@ -134,7 +134,7 @@ pub struct TestArgs {
     #[arg(long, env = "AZURE_USER_TENANT_ID")]
     pub tenant: Option<String>,
 
-    /// Bearer token (for manual-token auth method)
+    /// Bearer token (for token auth method)
     #[arg(long, env = "AZURE_BEARER_TOKEN")]
     pub bearer_token: Option<String>,
 
@@ -272,14 +272,26 @@ pub struct ListScenariosArgs {
 pub enum AuthMethodArg {
     #[default]
     Key,
+    #[value(
+        alias = "manual-token",
+        alias = "manual_token",
+        alias = "manual",
+        alias = "bearer"
+    )]
     Token,
     Both,
     #[value(name = "device-code")]
     DeviceCode,
     #[value(name = "managed-identity")]
     ManagedIdentity,
-    #[value(name = "manual-token")]
-    ManualToken,
+    #[value(
+        name = "service-principal",
+        alias = "service_principal",
+        alias = "serviceprincipal",
+        alias = "entra",
+        alias = "aad"
+    )]
+    ServicePrincipal,
     #[value(name = "interactive")]
     Interactive,
 }
@@ -292,7 +304,7 @@ impl From<AuthMethodArg> for crate::config::AuthMethod {
             AuthMethodArg::Both => crate::config::AuthMethod::Both,
             AuthMethodArg::DeviceCode => crate::config::AuthMethod::DeviceCode,
             AuthMethodArg::ManagedIdentity => crate::config::AuthMethod::ManagedIdentity,
-            AuthMethodArg::ManualToken => crate::config::AuthMethod::ManualToken,
+            AuthMethodArg::ServicePrincipal => crate::config::AuthMethod::ServicePrincipal,
             AuthMethodArg::Interactive => crate::config::AuthMethod::Interactive,
         }
     }
@@ -383,5 +395,43 @@ mod tests {
     fn test_parse_services_normalize() {
         let result = parse_services(&["document-intelligence".to_string()]);
         assert_eq!(result[0], "document_intelligence");
+    }
+
+    #[test]
+    fn test_auth_method_arg_token_maps_to_token_auth() {
+        let cli = Cli::try_parse_from([
+            "azure-aitoolsconnect",
+            "test",
+            "--auth",
+            "token",
+            "--bearer-token",
+            "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.12345678901234567890",
+        ])
+        .unwrap();
+
+        match cli.command {
+            Commands::Test(args) => {
+                assert!(matches!(args.auth, AuthMethodArg::Token));
+            }
+            _ => panic!("expected test command"),
+        }
+    }
+
+    #[test]
+    fn test_auth_method_arg_service_principal_maps_correctly() {
+        let cli = Cli::try_parse_from([
+            "azure-aitoolsconnect",
+            "test",
+            "--auth",
+            "service-principal",
+        ])
+        .unwrap();
+
+        match cli.command {
+            Commands::Test(args) => {
+                assert!(matches!(args.auth, AuthMethodArg::ServicePrincipal));
+            }
+            _ => panic!("expected test command"),
+        }
     }
 }

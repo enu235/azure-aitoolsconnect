@@ -128,14 +128,26 @@ impl std::str::FromStr for OutputFormat {
 pub enum AuthMethod {
     #[default]
     Key,
+    #[serde(
+        alias = "manual_token",
+        alias = "manual-token",
+        alias = "manual",
+        alias = "bearer"
+    )]
     Token,
     Both,
     #[serde(rename = "device_code")]
     DeviceCode,
     #[serde(rename = "managed_identity")]
     ManagedIdentity,
-    #[serde(rename = "manual_token")]
-    ManualToken,
+    #[serde(
+        rename = "service_principal",
+        alias = "service-principal",
+        alias = "serviceprincipal",
+        alias = "entra",
+        alias = "aad"
+    )]
+    ServicePrincipal,
     #[serde(rename = "interactive")]
     Interactive,
 }
@@ -148,7 +160,7 @@ impl std::fmt::Display for AuthMethod {
             AuthMethod::Both => write!(f, "both"),
             AuthMethod::DeviceCode => write!(f, "device-code"),
             AuthMethod::ManagedIdentity => write!(f, "managed-identity"),
-            AuthMethod::ManualToken => write!(f, "manual-token"),
+            AuthMethod::ServicePrincipal => write!(f, "service-principal"),
             AuthMethod::Interactive => write!(f, "interactive"),
         }
     }
@@ -160,14 +172,16 @@ impl std::str::FromStr for AuthMethod {
     fn from_str(s: &str) -> Result<Self> {
         match s.to_lowercase().as_str() {
             "key" | "apikey" | "api-key" => Ok(AuthMethod::Key),
-            "token" | "entra" | "aad" | "bearer" => Ok(AuthMethod::Token),
+            "token" | "manual-token" | "manual_token" | "manualtoken" | "manual" | "bearer" => {
+                Ok(AuthMethod::Token)
+            }
             "both" | "all" => Ok(AuthMethod::Both),
             "device-code" | "device_code" | "devicecode" => Ok(AuthMethod::DeviceCode),
             "managed-identity" | "managed_identity" | "managedidentity" | "mi" => {
                 Ok(AuthMethod::ManagedIdentity)
             }
-            "manual-token" | "manual_token" | "manualtoken" | "manual" => {
-                Ok(AuthMethod::ManualToken)
+            "service-principal" | "service_principal" | "serviceprincipal" | "entra" | "aad" => {
+                Ok(AuthMethod::ServicePrincipal)
             }
             "interactive" | "browser" => Ok(AuthMethod::Interactive),
             _ => Err(AppError::Config(format!("Unknown auth method: {}", s))),
@@ -198,7 +212,7 @@ pub struct EntraConfig {
     pub client_secret: Option<String>,
 }
 
-/// User authentication configuration (device code, managed identity, manual token)
+/// User authentication configuration (device code, managed identity, bearer token)
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct UserAuthConfig {
     /// Tenant ID for device code flow
@@ -207,7 +221,7 @@ pub struct UserAuthConfig {
     pub client_id: Option<String>,
     /// Client ID for user-assigned managed identity
     pub managed_identity_client_id: Option<String>,
-    /// Bearer token for manual token authentication
+    /// Bearer token for token authentication
     pub bearer_token: Option<String>,
 }
 
@@ -466,25 +480,30 @@ pub fn validate_config(config: &Config) -> Result<Vec<String>> {
         }
     }
 
-    // Check Entra config if token auth is selected
+    // Check Entra config if service principal auth is selected
     if matches!(
         config.auth.default_method,
-        AuthMethod::Token | AuthMethod::Both
+        AuthMethod::ServicePrincipal | AuthMethod::Both
     ) {
         if config.auth.entra.tenant_id.is_none() {
-            warnings.push("Token auth selected but tenant_id is not configured".to_string());
+            warnings.push(
+                "Service principal auth selected but tenant_id is not configured".to_string(),
+            );
         }
         if config.auth.entra.client_id.is_none() {
-            warnings.push("Token auth selected but client_id is not configured".to_string());
+            warnings.push(
+                "Service principal auth selected but client_id is not configured".to_string(),
+            );
         }
         if config.auth.entra.client_secret.is_none() {
-            warnings.push("Token auth selected but client_secret is not configured".to_string());
+            warnings.push(
+                "Service principal auth selected but client_secret is not configured".to_string(),
+            );
         }
     }
 
     // Check interactive config
-    if config.auth.default_method == AuthMethod::Interactive
-        && config.auth.user.tenant_id.is_none()
+    if config.auth.default_method == AuthMethod::Interactive && config.auth.user.tenant_id.is_none()
     {
         warnings.push(
             "Interactive auth selected but tenant_id is not configured in [auth.user]. \
@@ -503,12 +522,10 @@ pub fn validate_config(config: &Config) -> Result<Vec<String>> {
         );
     }
 
-    // Check manual-token config
-    if config.auth.default_method == AuthMethod::ManualToken
-        && config.auth.user.bearer_token.is_none()
-    {
+    // Check token config
+    if config.auth.default_method == AuthMethod::Token && config.auth.user.bearer_token.is_none() {
         warnings.push(
-            "Manual token auth selected but no bearer_token is configured. \
+            "Token auth selected but no bearer_token is configured. \
              Use --bearer-token or set AZURE_BEARER_TOKEN."
                 .to_string(),
         );
@@ -529,7 +546,10 @@ pub fn validate_config(config: &Config) -> Result<Vec<String>> {
     // Check bearer token auth without custom endpoint
     if matches!(
         config.auth.default_method,
-        AuthMethod::DeviceCode | AuthMethod::ManualToken | AuthMethod::ManagedIdentity | AuthMethod::Interactive
+        AuthMethod::DeviceCode
+            | AuthMethod::Token
+            | AuthMethod::ManagedIdentity
+            | AuthMethod::Interactive
     ) {
         let has_custom_endpoint = config.services.values().any(|s| s.endpoint.is_some());
         if !has_custom_endpoint {
@@ -624,6 +644,27 @@ mod tests {
         assert_eq!(
             ep,
             "https://myservice.cognitiveservices.azure.com/sts/v1.0/issueToken"
+        );
+    }
+
+    #[test]
+    fn test_auth_method_parse_token_aliases() {
+        assert_eq!("token".parse::<AuthMethod>().unwrap(), AuthMethod::Token);
+        assert_eq!(
+            "manual-token".parse::<AuthMethod>().unwrap(),
+            AuthMethod::Token
+        );
+    }
+
+    #[test]
+    fn test_auth_method_parse_service_principal_aliases() {
+        assert_eq!(
+            "service-principal".parse::<AuthMethod>().unwrap(),
+            AuthMethod::ServicePrincipal
+        );
+        assert_eq!(
+            "entra".parse::<AuthMethod>().unwrap(),
+            AuthMethod::ServicePrincipal
         );
     }
 }

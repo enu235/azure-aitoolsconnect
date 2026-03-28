@@ -22,20 +22,20 @@ output_format = "human"
 [auth]
 # Authentication method options:
 # - "key": API key authentication (simplest)
-# - "token": Service principal with client credentials
+# - "token": Provide your own bearer token (for example from Azure CLI)
 # - "device_code": User authentication via device code flow (NEW)
 # - "managed_identity": Automatic auth for Azure VMs/App Service (NEW)
-# - "manual_token": Provide your own bearer token (NEW)
+# - "service_principal": Client credentials via Entra ID (NEW)
 # - "both": Try API key, fallback to service principal
 default_method = "key"
 
-# Service principal configuration (for "token" method)
+# Service principal configuration (for "service_principal" method)
 [auth.entra]
 # tenant_id = "your-tenant-id"
 # client_id = "your-service-principal-client-id"
 # client_secret = "your-service-principal-secret"
 
-# User authentication configuration (for device_code, managed_identity, manual_token)
+# User authentication configuration (for device_code, managed_identity, token)
 [auth.user]
 # Tenant ID for device code flow (required for device_code method)
 # tenant_id = "your-tenant-id"
@@ -46,7 +46,7 @@ default_method = "key"
 # Optional: Client ID for user-assigned managed identity
 # managed_identity_client_id = "your-user-assigned-mi-client-id"
 
-# Optional: Bearer token for manual token authentication
+# Optional: Bearer token for token authentication
 # bearer_token = "eyJ0eXAiOiJKV1QiLCJhbG..."
 
 # =============================================================================

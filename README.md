@@ -5,7 +5,7 @@ A Rust-based CLI tool for verifying connectivity from clients to Azure AI Servic
 ## Features
 
 - **Multi-Service Testing** - Test Speech, Translator, Language, Vision, and Document Intelligence services
-- **Multiple Authentication Methods** - API keys, device code flow, managed identity, manual tokens, service principals, and cognitive token exchange
+- **Multiple Authentication Methods** - API keys, device code flow, managed identity, bearer tokens, service principals, and cognitive token exchange
 - **Standalone Token Acquisition** - `login` command gets bearer tokens without running tests, with optional disk caching
 - **User-Friendly Authentication** - No Azure CLI required - authenticate directly via device code flow with countdown timer
 - **Token Caching** - Cache tokens to disk with `--save` to avoid re-authentication across runs
@@ -114,10 +114,10 @@ sequenceDiagram
         else Managed Identity
             AuthManager->>Azure: IMDS/App Service token request
             Azure-->>AuthManager: Bearer token
-        else Entra ID (Service Principal)
+        else Service Principal
             AuthManager->>Azure: OAuth2 client credentials request
             Azure-->>AuthManager: Bearer token
-        else Manual Token
+        else Token
             AuthManager-->>CLI: User-provided bearer token
         end
     end
@@ -230,7 +230,7 @@ timeout_seconds = 30
 output_format = "human"    # "human", "json", or "junit"
 
 [auth]
-default_method = "key"     # "key", "token", or "both"
+default_method = "key"     # "key", "token", "service_principal", or "both"
 
 [auth.entra]
 tenant_id = "your-tenant-id"
@@ -265,7 +265,7 @@ image_file = "/path/to/image.png"
 | `AZURE_CLIENT_ID` | Service principal client ID |
 | `AZURE_CLIENT_SECRET` | Service principal client secret |
 | `AZURE_USER_TENANT_ID` | Tenant ID for device code flow |
-| `AZURE_BEARER_TOKEN` | Manual bearer token |
+| `AZURE_BEARER_TOKEN` | Bearer token for token auth |
 | `AZURE_MI_CLIENT_ID` | Client ID for user-assigned managed identity |
 
 ## Authentication Methods
@@ -275,7 +275,7 @@ Azure AI Tools Connect supports six authentication methods to accommodate differ
 1. **API Key** - Simplest method for quick testing
 2. **Device Code Flow** - User authentication without Azure CLI (NEW)
 3. **Managed Identity** - Zero-config authentication in Azure environments (NEW)
-4. **Manual Token** - Advanced troubleshooting with custom tokens (NEW)
+4. **Token** - Use a bearer token obtained from Azure CLI or another source (NEW)
 5. **Service Principal** - Enterprise automation with Entra ID
 6. **Both** - Fallback between API key and service principal
 
@@ -295,9 +295,13 @@ azure-aitoolsconnect test --auth device-code --tenant YOUR_TENANT_ID \
 # Managed Identity (Azure environments)
 azure-aitoolsconnect test --auth managed-identity --region eastus
 
+# Bearer token from Azure CLI or another source
+azure-aitoolsconnect test --auth token --bearer-token "$TOKEN" \
+  --endpoint https://your-resource.cognitiveservices.azure.com
+
 # Service Principal (automation)
 export AZURE_TENANT_ID=... AZURE_CLIENT_ID=... AZURE_CLIENT_SECRET=...
-azure-aitoolsconnect test --auth token --region eastus
+azure-aitoolsconnect test --auth service-principal --region eastus
 ```
 
 ### Which Method Should I Use?
@@ -307,6 +311,7 @@ azure-aitoolsconnect test --auth token --region eastus
 | Get a token for other tools | `login` command | Standalone token acquisition, cacheable |
 | Local development | Device Code | No Azure CLI, works everywhere |
 | Azure VM/App Service | Managed Identity | Secure, no credentials |
+| Reuse a token from Azure CLI or another tool | Token | Bring your own bearer token |
 | CI/CD Pipelines | Service Principal | Designed for automation |
 | Quick testing | API Key | Fastest setup |
 
@@ -314,7 +319,7 @@ azure-aitoolsconnect test --auth token --region eastus
 
 ### Bearer Token Requirements (Entra ID)
 
-When using bearer token authentication (device code, managed identity, or service principal), you must meet these requirements:
+When using bearer token authentication (device code, token, managed identity, or service principal), you must meet these requirements:
 
 ```mermaid
 flowchart LR
@@ -397,7 +402,7 @@ azure-aitoolsconnect/
 │   │   ├── mod.rs          # Authentication manager
 │   │   ├── device_code.rs  # Device code flow with countdown UX
 │   │   ├── managed_identity.rs  # Azure managed identity
-│   │   ├── manual_token.rs # Manual bearer token
+│   │   ├── manual_token.rs # Bearer token auth
 │   │   └── token_cache.rs  # Disk-based token caching
 │   ├── error/mod.rs        # Error types, exit codes & hints
 │   ├── output/mod.rs       # Output formatting
