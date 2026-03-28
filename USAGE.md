@@ -83,11 +83,11 @@ azure-aitoolsconnect test [OPTIONS]
 |--------|-------|-------------|---------|
 | `--services <LIST>` | `-s` | Services to test (comma-separated or "all") | all |
 | `--api-key <KEY>` | `-k` | API key for authentication | - |
-| `--auth <METHOD>` | `-a` | Auth method (key/device-code/managed-identity/manual-token/token/both) | key |
+| `--auth <METHOD>` | `-a` | Auth method (key/token/device-code/managed-identity/service-principal/both) | key |
 | `--region <REGION>` | `-r` | Azure region | eastus |
 | `--cloud <CLOUD>` | `-c` | Cloud environment (global/china) | global |
 | `--tenant <ID>` | | Tenant ID for device code flow | - |
-| `--bearer-token <TOKEN>` | | Bearer token for manual-token auth | - |
+| `--bearer-token <TOKEN>` | | Bearer token for token auth | - |
 | `--endpoint <URL>` | `-e` | Custom endpoint URL | - |
 | `--output <FORMAT>` | `-o` | Output format (human/json/junit) | human |
 | `--output-file <FILE>` | `-f` | Write output to file | - |
@@ -127,7 +127,7 @@ azure-aitoolsconnect test --services all --output json \
 
 # Use custom endpoint with bearer token
 azure-aitoolsconnect test --services speech \
-  --auth manual-token --bearer-token $TOKEN \
+  --auth token --bearer-token $TOKEN \
   --endpoint https://my-custom-endpoint.cognitiveservices.azure.com
 
 # Force fresh authentication (ignore cached tokens)
@@ -307,7 +307,7 @@ azure-aitoolsconnect init [OPTIONS]
 flowchart LR
     Start[init --interactive] --> Cloud[Cloud?<br/>global / china]
     Cloud --> Region[Region?<br/>e.g. eastus]
-    Region --> Auth[Auth method?<br/>key / device-code /<br/>managed-identity / manual-token]
+    Region --> Auth[Auth method?<br/>key / token / device-code /<br/>managed-identity]
     Auth --> Creds[Credentials?<br/>API key or tenant ID]
     Creds --> Endpoint[Custom endpoint?<br/>optional]
     Endpoint --> Services[Services?<br/>all or pick specific]
@@ -452,7 +452,7 @@ flowchart LR
     Method --> Token[token]
     Method --> DC[device_code]
     Method --> MI[managed_identity]
-    Method --> MT[manual_token]
+    Method --> SPM[service_principal]
 
     Entra --> SP[Tenant/Client/Secret]
     User --> UserTenant[Tenant for DC]
@@ -487,20 +487,20 @@ output_format = "human"       # Output: "human", "json", "junit"
 
 # Authentication settings
 [auth]
-default_method = "key"        # "key", "token", "device_code", "managed_identity", "manual_token", "both"
+default_method = "key"        # "key", "token", "device_code", "managed_identity", "service_principal", "both"
 
-# Service principal configuration (for "token" method)
+# Service principal configuration (for "service_principal" method)
 [auth.entra]
 tenant_id = "your-tenant-id"
 client_id = "your-service-principal-client-id"
 client_secret = "your-service-principal-secret"
 
-# User authentication (for device_code, managed_identity, manual_token)
+# User authentication (for device_code, managed_identity, token)
 [auth.user]
 tenant_id = "your-tenant-id"              # Required for device_code
 # client_id = "04b07795-8ddb-461a-bbee-02f9e1bf7b46"  # Optional
 # managed_identity_client_id = "..."     # For user-assigned MI
-# bearer_token = "eyJ0..."                # For manual token
+# bearer_token = "eyJ0..."                # For token auth
 
 # Service configurations
 [services.speech]
@@ -559,7 +559,7 @@ export AZURE_CLIENT_SECRET="your-client-secret"
 
 # User authentication (NEW)
 export AZURE_USER_TENANT_ID="your-tenant-id"        # For device code flow
-export AZURE_BEARER_TOKEN="eyJ0..."                  # For manual token
+export AZURE_BEARER_TOKEN="eyJ0..."                  # For token auth
 export AZURE_MI_CLIENT_ID="your-uami-client-id"      # For user-assigned MI
 
 # Configuration file location
@@ -602,7 +602,7 @@ flowchart TD
     Q4 -->|No| DC
 
     Start -->|Quick Test| KEY
-    Start -->|Advanced<br/>Debugging| MT[Manual Token]
+    Start -->|Advanced<br/>Debugging| MT[Token]
 
     style MI fill:#90EE90
     style DC fill:#87CEEB
@@ -714,26 +714,26 @@ managed_identity_client_id = "your-uami-client-id"  # optional
 - Azure Functions
 - Azure DevOps hosted agents
 
-### 4. Manual Token (Advanced)
+### 4. Token (Advanced)
 
 **Best for:** Advanced troubleshooting, testing specific token scenarios
 
-Provide your own bearer token obtained through any method.
+Provide your own bearer token obtained through any method, including Azure CLI.
 
 ```bash
 # Via CLI
 azure-aitoolsconnect test \
-  --auth manual-token \
+  --auth token \
   --bearer-token "eyJ0..." \
   --region eastus
 
 # Via environment
 export AZURE_BEARER_TOKEN="eyJ0eXAiOiJKV1QiLCJhbG..."
-azure-aitoolsconnect test --auth manual-token --region eastus
+azure-aitoolsconnect test --auth token --region eastus
 
 # Via config file
 [auth]
-default_method = "manual_token"
+default_method = "token"
 
 [auth.user]
 bearer_token = "eyJ0eXAiOiJKV1QiLCJhbG..."
@@ -750,11 +750,11 @@ Enterprise-grade OAuth 2.0 authentication using Azure Entra ID (formerly Azure A
 export AZURE_TENANT_ID="your-tenant-id"
 export AZURE_CLIENT_ID="your-client-id"
 export AZURE_CLIENT_SECRET="your-client-secret"
-azure-aitoolsconnect test --auth token --region eastus
+azure-aitoolsconnect test --auth service-principal --region eastus
 
 # Via config file
 [auth]
-default_method = "token"
+default_method = "service_principal"
 
 [auth.entra]
 tenant_id = "your-tenant-id"
@@ -777,7 +777,7 @@ azure-aitoolsconnect test --auth both
 | **API Key** | Very Simple | Quick testing | No |
 | **Device Code** | Simple | Local development | No |
 | **Managed Identity** | Zero config | Azure environments | No |
-| **Manual Token** | Medium | Advanced testing | No |
+| **Token** | Medium | Reuse an existing bearer token | No |
 | **Service Principal** | Medium | Automation/CI/CD | No |
 
 ### Troubleshooting Authentication
@@ -800,7 +800,7 @@ Hint: Use --tenant YOUR_TENANT_ID or set AZURE_USER_TENANT_ID.
 - **Not Available:** Ensure running on Azure resource with MI enabled, or use `--auth device-code`
 - **Permission Denied:** Grant the managed identity **Cognitive Services User** role on the resource
 
-**Manual Token:**
+**Token:**
 - **Invalid Token:** Ensure token is valid, not expired, and has correct audience/scope
 - **Get a fresh token:** Use `azure-aitoolsconnect login --tenant ID` to acquire one
 

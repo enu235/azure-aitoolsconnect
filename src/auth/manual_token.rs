@@ -2,7 +2,7 @@ use super::{AuthProvider, Credentials};
 use crate::error::{AppError, Result};
 use async_trait::async_trait;
 
-/// Manual token authentication provider
+/// Token authentication provider
 /// Accepts a pre-obtained bearer token and returns it for authentication
 pub struct ManualTokenAuth {
     token: String,
@@ -35,7 +35,7 @@ impl AuthProvider for ManualTokenAuth {
     }
 
     fn method_name(&self) -> &'static str {
-        "Manual Token"
+        "Token"
     }
 }
 

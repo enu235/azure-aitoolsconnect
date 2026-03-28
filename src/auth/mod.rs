@@ -320,8 +320,8 @@ impl AuthProvider for CognitiveTokenAuth {
 /// Authentication manager that supports multiple auth methods
 pub struct AuthManager {
     api_key: Option<ApiKeyAuth>,
-    entra: Option<EntraTokenAuth>,
-    manual_token: Option<ManualTokenAuth>,
+    service_principal: Option<EntraTokenAuth>,
+    token: Option<ManualTokenAuth>,
     managed_identity: Option<ManagedIdentityAuth>,
     device_code: Option<DeviceCodeAuth>,
     interactive: Option<InteractiveAuth>,
@@ -356,7 +356,7 @@ impl AuthManager {
     ) -> Result<Self> {
         let api_key_auth = api_key.map(ApiKeyAuth::new);
 
-        let entra_auth = if let Some(config) = entra_config {
+        let service_principal_auth = if let Some(config) = entra_config {
             if config.tenant_id.is_some()
                 && config.client_id.is_some()
                 && config.client_secret.is_some()
@@ -369,8 +369,8 @@ impl AuthManager {
             None
         };
 
-        // Initialize manual token auth if bearer token is provided
-        let manual_token_auth = if let Some(config) = user_config {
+        // Initialize token auth if bearer token is provided
+        let token_auth = if let Some(config) = user_config {
             if let Some(token) = &config.bearer_token {
                 Some(ManualTokenAuth::new(token.clone())?)
             } else {
@@ -413,8 +413,8 @@ impl AuthManager {
 
         Ok(Self {
             api_key: api_key_auth,
-            entra: entra_auth,
-            manual_token: manual_token_auth,
+            service_principal: service_principal_auth,
+            token: token_auth,
             managed_identity: managed_identity_auth,
             device_code: device_code_auth,
             interactive: interactive_auth,
@@ -433,12 +433,10 @@ impl AuthManager {
                 }
             }
             AuthMethod::Token => {
-                if let Some(ref entra) = self.entra {
-                    Ok(entra as &dyn AuthProvider)
+                if let Some(ref token) = self.token {
+                    Ok(token as &dyn AuthProvider)
                 } else {
-                    Err(AppError::Config(
-                        "Entra token auth not configured".to_string(),
-                    ))
+                    Err(AppError::Config("Token auth not configured".to_string()))
                 }
             }
             AuthMethod::DeviceCode => {
@@ -457,12 +455,12 @@ impl AuthManager {
                     ))
                 }
             }
-            AuthMethod::ManualToken => {
-                if let Some(ref manual) = self.manual_token {
-                    Ok(manual as &dyn AuthProvider)
+            AuthMethod::ServicePrincipal => {
+                if let Some(ref service_principal) = self.service_principal {
+                    Ok(service_principal as &dyn AuthProvider)
                 } else {
-                    Err(AppError::InvalidBearerToken(
-                        "Bearer token not provided".to_string(),
+                    Err(AppError::Config(
+                        "Service principal auth not configured".to_string(),
                     ))
                 }
             }
@@ -474,11 +472,11 @@ impl AuthManager {
                 }
             }
             AuthMethod::Both => {
-                // Try API key first, fallback to entra
+                // Try API key first, fallback to service principal
                 if let Some(ref key) = self.api_key {
                     Ok(key as &dyn AuthProvider)
-                } else if let Some(ref entra) = self.entra {
-                    Ok(entra as &dyn AuthProvider)
+                } else if let Some(ref service_principal) = self.service_principal {
+                    Ok(service_principal as &dyn AuthProvider)
                 } else {
                     Err(AppError::Config("No authentication configured".to_string()))
                 }
@@ -492,8 +490,8 @@ impl AuthManager {
         if let Some(ref api_key) = self.api_key {
             providers.push(api_key);
         }
-        if let Some(ref entra) = self.entra {
-            providers.push(entra);
+        if let Some(ref service_principal) = self.service_principal {
+            providers.push(service_principal);
         }
         providers
     }
@@ -503,9 +501,9 @@ impl AuthManager {
         self.api_key.is_some()
     }
 
-    /// Check if Entra auth is available
-    pub fn has_entra(&self) -> bool {
-        self.entra.is_some()
+    /// Check if service principal auth is available
+    pub fn has_service_principal(&self) -> bool {
+        self.service_principal.is_some()
     }
 }
 
