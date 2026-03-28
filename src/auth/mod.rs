@@ -501,9 +501,9 @@ impl AuthManager {
         self.api_key.is_some()
     }
 
-    /// Check if Entra auth is available
-    pub fn has_entra(&self) -> bool {
-        self.entra.is_some()
+    /// Check if service principal auth is available
+    pub fn has_service_principal(&self) -> bool {
+        self.service_principal.is_some()
     }
 }
 
